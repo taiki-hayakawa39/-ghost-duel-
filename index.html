@@ -12,7 +12,18 @@
     .wrap{width:min(620px,100%);margin:auto;padding:18px 16px 38px}.title{display:flex;align-items:center;gap:13px;margin-bottom:18px}.title .logo{display:grid;place-items:center;width:48px;height:48px;border:1px solid #637794;border-radius:15px;font-size:27px;background:#20344e}.title h1{font-size:24px;margin:0;letter-spacing:.025em}.title p{margin:3px 0 0;color:var(--muted);font-size:13px}
     .panel{border:1px solid var(--line);background:#18273cbf;border-radius:17px;padding:17px;margin:12px 0}.panel h2{font-size:17px;margin:0 0 12px}.hidden{display:none!important}.muted{color:var(--muted);font-size:13px;line-height:1.65}.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.row>*{min-width:0}.grow{flex:1}.field{width:100%;background:#0e192a;border:1px solid #6c7b91;border-radius:11px;color:white;padding:13px 12px;font-size:19px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;text-align:center}
     button{font:inherit;cursor:pointer;min-height:44px;border:1px solid #61728b;border-radius:11px;background:#233750;color:#f0f7ff;padding:9px 15px;font-weight:700;transition:filter .1s}button:focus-visible,.cell:focus-visible{outline:3px solid var(--accent);outline-offset:2px}button:not(:disabled):active{filter:brightness(1.3)}button:disabled{opacity:.45;cursor:not-allowed}.primary{color:#1c2534;background:var(--accent);border-color:#e4b76c}.secondary{background:#273d54}.danger{border-color:#8e4853;background:#462934}.full{width:100%}.separator{margin:16px 0;color:var(--muted);text-align:center;font-size:12px;display:flex;align-items:center;gap:10px}.separator:before,.separator:after{content:"";height:1px;background:var(--line);flex:1}.code{font-weight:850;letter-spacing:.17em;font-size:clamp(26px,8vw,38px);color:var(--accent);overflow-wrap:anywhere;margin:5px 0 12px}.status{border-radius:11px;background:#26364b;padding:11px 13px;font-size:14px;line-height:1.6}.status.error{background:#52333c;color:#ffd7d7}.status.good{background:#163f3a;color:#bafbe4}.kicker{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em}.tips{margin:12px 0 0;padding:0 0 0 19px;color:var(--muted);font-size:13px;line-height:1.9}
-    .topline{display:flex;justify-content:space-between;gap:10px;align-items:center}.badge{padding:6px 10px;border-radius:999px;border:1px solid #7b8a9d;color:#dfeaff;font-size:12px;white-space:nowrap}.badge.green{color:#aaf6da;border-color:#539c80}.toolbar{display:flex;gap:8px;justify-content:space-between;align-items:stretch;flex-wrap:wrap;margin:12px 0}.toolbar .small{font-size:12px;padding:8px 9px}.counts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:11px 0 14px}.stat{border:1px solid var(--line);border-radius:11px;padding:9px;background:#18263b}.stat b{font-size:12px}.stat div{font-size:14px;margin-top:4px}.colorblue{color:var(--blue)}.colorred{color:var(--red)}
+    .topline{display:flex;justify-content:space-between;gap:10px;align-items:center}.badge{padding:6px 10px;border-radius:999px;border:1px solid #7b8a9d;color:#dfeaff;font-size:12px;white-space:nowrap}.badge.green{color:#aaf6da;border-color:#539c80}.toolbar{display:flex;gap:8px;justify-content:space-between;align-items:stretch;flex-wrap:wrap;margin:12px 0}.toolbar .small{font-size:12px;padding:8px 9px}/* 将棋の持ち駒のように、捕獲した駒を盤面の上下に残す */
+    .prize-zone{border:1px solid #506b81;border-radius:13px;background:#102338;margin:10px 0;padding:9px 10px}
+    .prize-heading{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:3px 8px;margin-bottom:7px}
+    .prize-heading strong{font-size:14px;color:#f7f0dd}
+    .prize-heading small{font-size:11px;color:#b1c8d9}
+    .prize-pieces{min-height:43px;display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+    .prize-piece{position:relative;display:grid;place-items:center;width:39px;height:42px;flex:0 0 39px;border-radius:13px 13px 10px 10px;font-size:26px;line-height:1;border:2px solid #91aac1;box-shadow:0 2px 0 rgba(0,0,0,.27);user-select:none}
+    .prize-piece.good{background:#b9e7ff;border-color:#65bde9}
+    .prize-piece.bad{background:#ffbdc5;border-color:#f38194}
+    .prize-piece-mark{position:absolute;right:-2px;bottom:-2px;display:grid;place-items:center;width:19px;height:19px;border-radius:50%;border:1px solid #dfecf6;background:#17283b;color:white;font-size:11px;font-weight:850}
+    .prize-empty{font-size:12px;color:#9ab4c8}
+    .prize-guide{margin:3px 1px 8px;color:#afc5d8;font-size:11px;text-align:center}
     .arena{border:1px solid #4a607a;background:linear-gradient(135deg,#264056,#15293e);border-radius:17px;padding:10px;margin-top:9px}.arena-label{font-size:12px;color:#c1d4e8;text-align:center;letter-spacing:.1em;margin:1px 0 9px}.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;width:100%;touch-action:manipulation}.cell{width:100%;aspect-ratio:1;min-height:0;display:grid;place-items:center;position:relative;border:1px solid #648098;border-radius:9px;background:#37536b;padding:3px}.cell:nth-child(12n + 1),.cell:nth-child(12n + 3),.cell:nth-child(12n + 5),.cell:nth-child(12n + 8),.cell:nth-child(12n + 10),.cell:nth-child(12n + 12){background:#304960}.cell.valid{outline:3px solid var(--accent);outline-offset:-4px;border-color:#ffe1b6;z-index:1}.cell.selected{background:#405f7c;outline:3px solid #f8d491;outline-offset:-3px}.cell.exit{border-color:#e0bf77}.exit-mark{position:absolute;top:0px;right:3px;font-size:12px;color:#f8dc95;line-height:1.2}.ghost{width:80%;height:80%;display:flex;justify-content:center;align-items:center;position:relative;border-radius:40% 40% 34% 34%;font-size:clamp(19px,6vw,37px);line-height:1;border:2px solid #8394ac;background:var(--light);color:#334155;box-shadow:0 4px 0 #0c1c2b4f}.ghost.good{background:#a9ddfd;border-color:#70bdeb;color:#1a597e}.ghost.bad{background:#ffbac1;border-color:#ea8190;color:#9d2e42}.ghost.enemy{background:#dbe6ee;border-color:#a2afc1;color:#4c6176}.mark{position:absolute;bottom:0;right:1px;font-size:10px;border-radius:10px;background:#22384e;color:#fff;width:14px;height:14px;display:grid;place-items:center}.cell .choice{position:absolute;inset:auto 4px 3px auto;min-width:15px;padding:0 2px;min-height:16px;font-size:10px;border-radius:99px;background:#f5cf89;color:#263445;font-weight:850}.note{font-size:13px;line-height:1.7;color:var(--muted);margin:10px 0}.actionbar{display:flex;gap:8px;margin-top:13px}.actionbar>*{flex:1}.history{max-height:160px;overflow:auto;font-size:12px;color:var(--muted);padding:8px 10px;background:#102036;border-radius:8px;line-height:1.7}.history p{margin:5px 0}.turn{font-size:17px;font-weight:800;color:var(--accent)}.reveal-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.foot{margin-top:20px;text-align:center;font-size:11px;color:#8298ad}.wait{background:#2f435b;border-radius:10px;padding:11px;margin:10px 0;font-size:13px;color:#eef4ff}
 
     /* 捕獲した色を大きく表示：両プレイヤーに共通 */
@@ -27,7 +38,7 @@
     .capture-dismiss{width:100%;background:#f5f8ff;color:#122138;border-color:#e4efff}
     @keyframes capture-pop{from{opacity:.65;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
     @media(prefers-reduced-motion:reduce){.capture-card{animation:none}}
-    @media(max-width:360px){.wrap{padding:12px 9px 30px}.panel{padding:12px}.board{gap:3px}.arena{padding:6px}.cell{border-radius:7px}.ghost{font-size:21px;border-width:1.5px}.counts{gap:6px}.stat{padding:7px}.title h1{font-size:20px}}
+    @media(max-width:360px){.wrap{padding:12px 9px 30px}.panel{padding:12px}.board{gap:3px}.arena{padding:6px}.cell{border-radius:7px}.ghost{font-size:21px;border-width:1.5px}.prize-zone{padding:7px}.prize-piece{width:36px;height:39px;flex-basis:36px;font-size:23px}.title h1{font-size:20px}}
     @media(min-width:550px){.ghost{font-size:42px}.cell{border-radius:12px}}
   </style>
 </head>
@@ -61,8 +72,20 @@
         <div class="panel">
           <div class="topline"><div><span class="kicker" id="roundLabel">ROUND 1</span><div id="turnText" class="turn" aria-live="polite">初期配置中</div></div><span id="playerBadge" class="badge green">あなたは P1</span></div>
           <p id="gameHint" class="note">自分の駒を2つ選ぶと赤青を入れ替えられます。</p>
-          <div class="counts"><div class="stat"><b>あなたの取られた駒</b><div><span class="colorblue">青 <strong id="lostBlue">0</strong>/4</span>　<span class="colorred">赤 <strong id="lostRed">0</strong>/4</span></div></div><div class="stat"><b>相手の取られた駒</b><div><span class="colorblue">青 <strong id="gotBlue">0</strong>/4</span>　<span class="colorred">赤 <strong id="gotRed">0</strong>/4</span></div></div></div>
-          <div class="arena"><div class="arena-label">↑ 相手側の脱出口　★ は青の出口</div><div id="board" class="board" role="group" aria-label="6×6の対戦盤"></div><div class="arena-label" style="margin:9px 0 1px">あなた側 ↓</div></div>
+          <div class="arena">
+            <div class="prize-zone" aria-label="相手の持ち駒">
+              <div class="prize-heading"><strong id="opponentHandTitle">相手の持ち駒</strong><small>相手が取ったあなたの駒</small></div>
+              <div id="opponentHand" class="prize-pieces" aria-label="相手が取った駒" aria-live="polite"><span class="prize-empty">まだありません</span></div>
+            </div>
+            <div class="arena-label">↑ 相手側の脱出口　★ は青の出口</div>
+            <div id="board" class="board" role="group" aria-label="6×6の対戦盤"></div>
+            <div class="arena-label" style="margin:9px 0 1px">あなた側 ↓</div>
+            <div class="prize-zone" aria-label="あなたの持ち駒">
+              <div class="prize-heading"><strong>あなたの持ち駒</strong><small>あなたが取った相手の駒</small></div>
+              <div id="myHand" class="prize-pieces" aria-label="あなたが取った駒" aria-live="polite"><span class="prize-empty">まだありません</span></div>
+            </div>
+            <p class="prize-guide">取った駒はここに残ります（盤面へは戻せません）。</p>
+          </div>
           <div id="gameButtons" class="actionbar"><button type="button" id="shuffle" class="secondary">配置をシャッフル</button><button type="button" id="ready" class="primary">配置を確定</button><button type="button" id="escape" class="primary hidden">青い駒を脱出</button><button type="button" id="restart" class="secondary hidden">もう一戦</button></div>
           <div id="moveMessage" class="wait" aria-live="polite">赤4体・青4体を確認して配置を決めてください。</div>
         </div>
@@ -104,7 +127,7 @@
       if(captureTimer!==null){clearTimeout(captureTimer);captureTimer=null;}
       $('captureFlash').classList.add('hidden');
     }
-    function showCapture(kind,attackerOwner,lostCount){
+    function showCapture(kind,attackerOwner){
       if(!['good','bad'].includes(kind))return;
       hideCapture();
       const isBlue=kind==='good',mine=attackerOwner===role;
@@ -117,8 +140,8 @@
       $('captureLabel').textContent=mine?'🎯 捕獲成功！':'⚠️ 駒が取られた！';
       $('captureHeading').textContent=color+'いおばけ！';
       $('captureDetail').textContent=mine
-        ?'相手の'+color+'い駒を捕獲！（'+lostCount+' / 4体）'
-        :who+'に自分の'+color+'い駒を取られました。（'+lostCount+' / 4体）';
+        ?'相手の'+color+'い駒を捕獲！ 持ち駒に加わりました。'
+        :who+'に自分の'+color+'い駒を取られました。';
       flash.classList.remove('hidden');
       captureTimer=setTimeout(hideCapture,3000);
     }
@@ -136,7 +159,7 @@
     function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){conn=c;let accepted=false;let receiveQueue=Promise.resolve();c.on('open',()=>{accepted=true;connected=true;$('connectBadge').textContent='対戦相手と接続中';$('connectBadge').classList.add('green');setRoomInfo('接続しました。盤面を準備しています。');if(role===1)send({t:'hello',v:2});else send({t:'hello-ready',v:2});});c.on('data',m=>{receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{console.error(e);gameError('処理で問題が発生しました。ゲームを新しく作り直してください。');});});c.on('close',()=>{if(conn!==c)return;connected=false;movePending=null;$('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');setRoomInfo('相手との接続が切れました。再開するには新しい部屋を作ってください。');if(game&&game.phase!=='finished'){game.phase='disconnected';render();}if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号と通信環境を確認してください。');});c.on('error',err=>{if(conn===c){setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));}});}
-    function startRound(n){hideCapture();if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
+    function startRound(n){hideCapture();if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -162,7 +185,7 @@
     function legal(m,by,allowPending=false){if(!game||game.phase!=='playing'||(movePending&&!allowPending)||game.turn!==by||m.seq!==game.seq+1)return null;const p=findPiece(m.id);if(!p||p.owner!==by)return null;if(m.t==='escape'){if(!isExit(p))return null;return{p,cap:null};}if(m.t!=='move'||!Number.isInteger(m.x)||!Number.isInteger(m.y)||m.x<0||m.x>5||m.y<0||m.y>5||Math.abs(m.x-p.x)+Math.abs(m.y-p.y)!==1)return null;const cap=at(m.x,m.y);if(cap&&cap.owner===by)return null;return{p,cap};}
     async function validProof(piece,kind,salt){if(!piece||!['good','bad'].includes(kind)||!(/^[0-9a-f]{32}$/).test(salt||''))return false;const expected=game.commitments[piece.owner]?.[piece.id];if(!expected)return false;return(await digest(commitmentData(piece,kind,salt)))===expected;}
     function gameError(msg){if(game){game.error=msg;if(game.phase!=='finished')game.phase='disconnected';render();$('moveMessage').textContent=msg;}else setRoomInfo(msg);}
-    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor]);}
+    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner);}
       else history('P'+(attacker.owner+1)+'が駒を動かしました');attacker.x=m.x;attacker.y=m.y;game.seq=m.seq;
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
@@ -264,7 +287,27 @@
     function handleCell(x,y){if(!game||!connected)return;const target=at(x,y);if(game.phase==='setup'){if(game.ready[role]||!target||target.owner!==role)return;if(!selection){selection=target.id;}else if(selection===target.id){selection=null;}else{const first=game.mySecrets[selection],second=game.mySecrets[target.id];if(first&&second)[first.kind,second.kind]=[second.kind,first.kind];selection=null;}render();return;}
       if(game.phase!=='playing'||game.turn!==role||movePending)return;if(selection&&target?.id===selection){selection=null;render();return;}if(selection){const p=selectedMine();if(p&&Math.abs(p.x-x)+Math.abs(p.y-y)===1&&(!target||target.owner!==role)){attemptMove(p.id,x,y);return;}}selection=target?.owner===role?target.id:null;render();}
     function localToGlobal(cx,cy){return role===0?{x:cx,y:cy}:{x:5-cx,y:5-cy};}
-    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);const you=game.captured[role],them=game.captured[1-role];$('lostBlue').textContent=you.good;$('lostRed').textContent=you.bad;$('gotBlue').textContent=them.good;$('gotRed').textContent=them.bad;
+
+    // 持ち駒は捕獲した順番のまま表示する。赤青は捕獲時に確定して両端末で共有される。
+    function renderHand(id,capturedPieces){
+      const hand=$(id);hand.replaceChildren();
+      if(!capturedPieces.length){
+        const empty=document.createElement('span');empty.className='prize-empty';
+        empty.textContent='まだありません';hand.append(empty);return;
+      }
+      for(const [index,piece] of capturedPieces.entries()){
+        const blue=piece.kind==='good',label=blue?'青':'赤';
+        const token=document.createElement('span');
+        token.className='prize-piece '+(blue?'good':'bad');
+        token.textContent='👻';
+        token.setAttribute('role','img');
+        token.setAttribute('aria-label',(index+1)+'個目：'+label+'い駒');
+        const mark=document.createElement('span');
+        mark.className='prize-piece-mark';mark.textContent=label;
+        mark.setAttribute('aria-hidden','true');token.append(mark);hand.append(token);
+      }
+    }
+    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
       const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
