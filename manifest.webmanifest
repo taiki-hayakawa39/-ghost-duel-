@@ -1,0 +1,26 @@
+{
+  "name": "ゴースト・デュエル",
+  "short_name": "ゴースト",
+  "description": "赤と青のオバケで心理戦！1人でも2人でも楽しめるボードゲーム。",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0c1526",
+  "theme_color": "#101a31",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

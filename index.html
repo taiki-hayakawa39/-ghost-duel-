@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101a31">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ゴーストデュエル">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png" sizes="180x180">
   <meta name="description" content="スマホ2台で遊べるオバケの心理戦ゲーム。部屋番号で接続して、秘密の赤青を見ながら対戦。">
   <title>ゴースト・デュエル｜スマホ2台対戦</title>
   <style>
@@ -193,6 +200,39 @@
     .saved-room .discard{margin-top:6px;background:transparent;color:#d7e7e5;font-size:12px;border-color:#668b85}
     .saved-hint{font-size:11px;color:#b3ccce;line-height:1.5}
     @media(prefers-reduced-motion:reduce){.reaction-toast{animation:none}}
+
+    /* 3つの勝利条件に応じた専用シーン。敗北側も原因が分かる */
+    .result-tagline{margin:6px 0 0;font-weight:850;letter-spacing:.02em;color:#f2ebdc;font-size:clamp(14px,4vw,17px)}
+    .result-figure{isolation:isolate}
+    .result-scene{width:min(305px,90%);height:178px;display:none;overflow:visible}
+    .result-overlay.type-blue .scene-blue,.result-overlay.type-red .scene-red,.result-overlay.type-escape .scene-escape{display:block}
+    .result-overlay.type-blue .result-ghost,.result-overlay.type-red .result-ghost,.result-overlay.type-escape .result-ghost{display:none}
+    .scene-blue .mini-ghost{fill:#88cfff;stroke:#c9edff;stroke-width:2.8;stroke-linejoin:round}
+    .scene-red .mini-ghost{fill:#ff9eac;stroke:#ffe3e7;stroke-width:2.8;stroke-linejoin:round}
+    .scene-eye{fill:#27435c}
+    .scene-smile{fill:none;stroke:#314457;stroke-width:3;stroke-linecap:round}
+    .scene-tear{fill:#5bbdff;stroke:#227ab6;stroke-width:1.3}
+    .scene-tongue{fill:#ef4d78;stroke:#9d2c50;stroke-width:1.2}
+    .result-overlay.type-blue .mini-wrap{animation:scene-sob 1.7s ease-in-out infinite}
+    .result-overlay.type-blue .mini-wrap:nth-child(even){animation-delay:-.6s}
+    .result-overlay.type-blue .scene-tear{animation:scene-drop 1.15s ease-in infinite}
+    .result-overlay.type-red .mini-wrap{animation:scene-tease 1.1s ease-in-out infinite}
+    .result-overlay.type-red .mini-wrap:nth-child(even){animation-delay:-.55s}
+    .scene-door-frame{fill:#24394a;stroke:#fbd888;stroke-width:8}
+    .scene-door-light{fill:#fff0ac}
+    .scene-exit-ghost{fill:#90d5ff;stroke:#dcf3ff;stroke-width:4;stroke-linejoin:round}
+    .scene-exit-face{fill:#1e5270}
+    .result-overlay.type-escape .scene-runner{animation:scene-run 2s cubic-bezier(.4,.1,.4,.9) infinite}
+    .result-overlay.type-escape .scene-star{animation:scene-spark 1.3s ease-in-out infinite}
+    .install-guide{margin:14px 0 0;padding:8px 12px;border:1px solid #537e94;border-radius:12px;background:#112c43}
+    .install-guide summary{font-weight:850;cursor:pointer;min-height:36px;align-content:center;font-size:14px}
+    .install-guide p{margin:7px 0 10px;color:#cde0f2;font-size:13px;line-height:1.8}
+    @keyframes scene-sob{0%,100%{transform:translateY(2px)}50%{transform:translateY(8px)}}
+    @keyframes scene-drop{0%{opacity:0;transform:translateY(-3px)}24%{opacity:1}100%{opacity:0;transform:translateY(14px)}}
+    @keyframes scene-tease{0%,100%{transform:rotate(-5deg) translateY(2px)}50%{transform:rotate(5deg) translateY(-7px)}}
+    @keyframes scene-run{0%{transform:translateX(-7px);opacity:1}58%{opacity:1}100%{transform:translateX(92px);opacity:0}}
+    @keyframes scene-spark{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+    @media(prefers-reduced-motion:reduce){.result-scene *{animation:none!important}}
   </style>
 </head>
 <body>
@@ -221,6 +261,12 @@
         <button type="button" id="join" class="secondary full" style="margin-top:10px">この部屋に参加する</button>
         <div id="homeMessage" class="status hidden" role="alert" style="margin-top:12px"></div>
         <p class="muted">※ オンライン対戦にはインターネットが必要です。途中で閉じた場合は、両端末で「前回の対局に戻る」を選ぶと再開を試せます。通信や保存状態によっては再開できません。</p>
+        <details class="install-guide">
+          <summary>📲 iPhoneのホーム画面に追加して遊ぶ</summary>
+          <p>Safariでこのページを開き、下の<strong>共有ボタン（□↑）</strong> → <strong>「ホーム画面に追加」</strong> → <strong>「追加」</strong>を選んでください。ホーム画面のオバケアイコンからゲームを起動できます。</p>
+          <p>最初にオンラインで一度開いて保存された後は、CPU対戦をオフラインでも遊べます。2人でのオンライン対戦には通信が必要です。</p>
+          <p>ホーム画面のアプリとSafariでは、対局の保存データが引き継がれないことがあります。</p>
+        </details>
       </section>
       <section id="roomPanel" class="panel hidden">
         <div class="topline"><div><span class="kicker">ROOM CODE</span><div id="roomText" class="code">--------</div></div><span id="connectBadge" class="badge">接続待機中</span></div>
@@ -365,6 +411,65 @@
       </div>
       <p class="result-top">GHOST DUEL · GAME OVER</p>
       <div class="result-figure">
+        <svg class="result-scene scene-blue" viewBox="0 0 300 170" role="img" aria-label="青いオバケ4体が涙を流している" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="150" cy="84" r="76" fill="#2485c0" opacity=".17"/>
+  <g class="mini-wrap" style="transform-origin:52px 80px"><g transform="translate(52 80)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <ellipse class="scene-eye" cx="-10" cy="-4" rx="4" ry="6"/><ellipse class="scene-eye" cx="10" cy="-4" rx="4" ry="6"/>
+      <path class="scene-smile" d="M-9 18 Q0 7 9 18"/><path class="scene-tear" d="M-11 2 Q-5 12 -8 18 Q-15 18 -15 13 Z"/><path class="scene-tear" d="M12 2 Q18 12 15 18 Q8 18 8 13 Z"/>
+  </g></g>
+<g class="mini-wrap" style="transform-origin:117px 105px"><g transform="translate(117 105)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <ellipse class="scene-eye" cx="-10" cy="-4" rx="4" ry="6"/><ellipse class="scene-eye" cx="10" cy="-4" rx="4" ry="6"/>
+      <path class="scene-smile" d="M-9 18 Q0 7 9 18"/><path class="scene-tear" d="M-11 2 Q-5 12 -8 18 Q-15 18 -15 13 Z"/><path class="scene-tear" d="M12 2 Q18 12 15 18 Q8 18 8 13 Z"/>
+  </g></g>
+<g class="mini-wrap" style="transform-origin:183px 75px"><g transform="translate(183 75)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <ellipse class="scene-eye" cx="-10" cy="-4" rx="4" ry="6"/><ellipse class="scene-eye" cx="10" cy="-4" rx="4" ry="6"/>
+      <path class="scene-smile" d="M-9 18 Q0 7 9 18"/><path class="scene-tear" d="M-11 2 Q-5 12 -8 18 Q-15 18 -15 13 Z"/><path class="scene-tear" d="M12 2 Q18 12 15 18 Q8 18 8 13 Z"/>
+  </g></g>
+<g class="mini-wrap" style="transform-origin:247px 105px"><g transform="translate(247 105)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <ellipse class="scene-eye" cx="-10" cy="-4" rx="4" ry="6"/><ellipse class="scene-eye" cx="10" cy="-4" rx="4" ry="6"/>
+      <path class="scene-smile" d="M-9 18 Q0 7 9 18"/><path class="scene-tear" d="M-11 2 Q-5 12 -8 18 Q-15 18 -15 13 Z"/><path class="scene-tear" d="M12 2 Q18 12 15 18 Q8 18 8 13 Z"/>
+  </g></g>
+</svg>
+        <svg class="result-scene scene-red" viewBox="0 0 300 170" role="img" aria-label="赤いオバケ4体が舌を出してからかっている" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="150" cy="84" r="77" fill="#f16d86" opacity=".16"/>
+  <g class="mini-wrap" style="transform-origin:52px 78px"><g transform="translate(52 78)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <path class="scene-smile" d="M-16 -2 Q-10 -10 -4 -2"/><ellipse class="scene-eye" cx="10" cy="-3" rx="4" ry="5"/>
+      <path d="M-10 12 Q0 22 11 12" fill="#70374d"/><path class="scene-tongue" d="M-4 16 Q0 14 5 16 L5 28 Q0 34 -4 28 Z"/>
+  </g></g>
+<g class="mini-wrap" style="transform-origin:116px 103px"><g transform="translate(116 103)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <path class="scene-smile" d="M-16 -2 Q-10 -10 -4 -2"/><ellipse class="scene-eye" cx="10" cy="-3" rx="4" ry="5"/>
+      <path d="M-10 12 Q0 22 11 12" fill="#70374d"/><path class="scene-tongue" d="M-4 16 Q0 14 5 16 L5 28 Q0 34 -4 28 Z"/>
+  </g></g>
+<g class="mini-wrap" style="transform-origin:183px 77px"><g transform="translate(183 77)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <path class="scene-smile" d="M-16 -2 Q-10 -10 -4 -2"/><ellipse class="scene-eye" cx="10" cy="-3" rx="4" ry="5"/>
+      <path d="M-10 12 Q0 22 11 12" fill="#70374d"/><path class="scene-tongue" d="M-4 16 Q0 14 5 16 L5 28 Q0 34 -4 28 Z"/>
+  </g></g>
+<g class="mini-wrap" style="transform-origin:246px 104px"><g transform="translate(246 104)">
+    <path class="mini-ghost" d="M-23 24 V-2 C-23 -23 -9 -32 0 -32 C13 -32 23 -21 23 -2 V24 L11 18 L0 26 L-13 18 Z"/>
+    <path class="scene-smile" d="M-16 -2 Q-10 -10 -4 -2"/><ellipse class="scene-eye" cx="10" cy="-3" rx="4" ry="5"/>
+      <path d="M-10 12 Q0 22 11 12" fill="#70374d"/><path class="scene-tongue" d="M-4 16 Q0 14 5 16 L5 28 Q0 34 -4 28 Z"/>
+  </g></g>
+</svg>
+        <svg class="result-scene scene-escape" viewBox="0 0 300 170" role="img" aria-label="青いオバケが光る出口の扉から脱出する" xmlns="http://www.w3.org/2000/svg">
+  <rect x="184" y="19" width="81" height="136" rx="42" class="scene-door-frame"/>
+  <rect x="196" y="29" width="57" height="116" rx="28" class="scene-door-light"/>
+  <path d="M12 142 Q85 112 174 112" stroke="#aedaff" stroke-width="4" stroke-dasharray="6 9" fill="none" opacity=".55"/>
+  <g class="scene-runner">
+    <path class="scene-exit-ghost" d="M57 118 V78 C57 50 73 38 96 38 C119 38 137 52 137 78 V119 L124 112 L110 123 L97 115 L81 126 L69 116 Z"/>
+    <ellipse cx="84" cy="83" rx="5" ry="7" class="scene-exit-face"/><ellipse cx="111" cy="83" rx="5" ry="7" class="scene-exit-face"/>
+    <path d="M85 100 Q97 116 111 100" fill="none" stroke="#1e5270" stroke-width="5" stroke-linecap="round"/>
+    <path d="M60 69 Q49 74 47 89 M133 69 Q146 72 147 88" fill="none" stroke="#fff1ae" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <path class="scene-star" d="M175 15 L181 28 L195 34 L181 40 L175 54 L168 40 L153 34 L168 28 Z" fill="#ffd975"/>
+  <path class="scene-star" d="M263 99 L267 106 L276 110 L267 114 L263 123 L259 114 L251 110 L259 106 Z" fill="#fff4ac"/>
+</svg>
         <svg class="result-ghost" viewBox="0 0 200 200" role="img" aria-label="対局結果のおばけ" xmlns="http://www.w3.org/2000/svg">
           <path class="result-body" d="M35 153 V87 C35 47 61 24 100 24 C138 24 165 47 165 87 V154 Q165 174 151 167 L137 161 Q126 178 113 166 L98 159 L78 172 Q68 177 58 164 L46 169 Q35 170 35 153 Z"/>
           <path class="result-sheen" d="M57 70 Q75 42 102 47"/>
@@ -384,6 +489,7 @@
         </svg>
       </div>
       <h2 id="resultHeading" class="result-heading">勝利！</h2>
+      <p id="resultTagline" class="result-tagline">オバケの勝負が決着！</p>
       <p id="resultReason" class="result-reason">対戦が終了しました</p>
       <div class="result-actions">
         <button type="button" id="resultRestart" class="result-restart">もう一戦</button>
@@ -584,10 +690,27 @@
       if(!game||game.phase!=='finished')return;
       const victory=game.winner===role;
       const overlay=$('resultOverlay');
-      overlay.classList.remove('win','lose');
+      overlay.classList.remove('win','lose','type-blue','type-red','type-escape');
       overlay.classList.add(victory?'win':'lose');
+      const kind=['blue','red','escape'].includes(game.winType)?game.winType:null;
+      if(kind)overlay.classList.add('type-'+kind);
       $('resultHeading').textContent=victory?'勝利！':'敗北…';
-      $('resultReason').textContent=game.reason;
+      const variants={
+        blue:{
+          title:victory?'🔵 青いオバケを4体捕獲！':'🔵 青いオバケが全員捕まった…',
+          reason:victory?'相手の青い駒を4体取りました。':'自分の青い駒が4体取られました。'
+        },
+        red:{
+          title:victory?'🔴 赤いオバケの作戦成功！':'🔴 赤いオバケの罠にかかった…',
+          reason:victory?'自分の赤い駒4体を相手に取らせました。':'相手の赤い駒を4体取ってしまいました。'
+        },
+        escape:{
+          title:victory?'🚪 青いオバケが脱出成功！':'🚪 青いオバケを逃がした…',
+          reason:victory?'自分の青い駒が出口から脱出しました。':'相手の青い駒が出口から脱出しました。'
+        }
+      };
+      $('resultTagline').textContent=kind?variants[kind].title:'対局終了';
+      $('resultReason').textContent=kind?variants[kind].reason:game.reason;
       $('resultRestart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
       overlay.classList.remove('hidden');
       overlay.querySelector('.result-card').focus({preventScroll:true});
@@ -741,7 +864,7 @@
       });
       c.on('error',err=>{if(conn===c)setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));});
     }
-    function startRound(n){pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
+    function startRound(n){pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -772,17 +895,17 @@
       game.lastMove={id:attacker.id,owner:attacker.owner,fromX:from.x,fromY:from.y,toX:m.x,toY:m.y,seq:m.seq};
       game.moves.push({...game.lastMove,type:'move',captured:target?capturedColor:null});
       attacker.x=m.x;attacker.y=m.y;game.seq=m.seq;
-      if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました');}
-      else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
+      if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました','blue');}
+      else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました','red');}
       else {game.turn=1-game.turn;render();}}
-    function endGame(winner,reason){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;history('決着！ '+reason);sendAllSecrets();render();if(!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
+    function endGame(winner,reason,winType=null){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;game.winType=winType;history('決着！ '+reason);sendAllSecrets();render();if(!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
     function sendAllSecrets(){if(!game||!connected)return;
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
     function attemptMove(id,x,y){if(!game||!connected||movePending||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
       if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu(v.cap?captureDuration()+180:500);return;}
       if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
-    function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
+    function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました','escape');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
       if(m.t==='resume'){
@@ -828,7 +951,7 @@
       if(m.t==='move'&&game.phase==='playing'){const v=legal(m,1-role);if(!v)return gameError('相手から不正な手が届きました。');if(v.cap){if(v.cap.owner!==role)return gameError('取られた駒の確認に失敗しました。');const s=game.mySecrets[v.cap.id];send({t:'capture-proof',round:game.round,seq:m.seq,id:v.cap.id,kind:s.kind,salt:s.salt});commitMove(m,s.kind);}else commitMove(m,null);return;}
       if(m.t==='capture-proof'&&movePending&&game.phase==='playing'){const pending=movePending;const v=legal(pending,role,true);
         if(!v||!v.cap||pending.seq!==m.seq||v.cap.id!==m.id)return gameError('相手の取得情報が一致しません。');if(!await validProof(v.cap,m.kind,m.salt))return gameError('相手の駒の色を検証できませんでした。');movePending=null;commitMove(pending,m.kind);return;}
-      if(m.t==='escape'&&game.phase==='playing'){const v=legal(m,1-role);if(!v||!await validProof(v.p,m.kind,m.salt)||m.kind!=='good')return gameError('脱出の条件を検証できません。');game.moves.push({id:m.id,owner:1-role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(1-role,'青い駒を出口から脱出させました');return;}
+      if(m.t==='escape'&&game.phase==='playing'){const v=legal(m,1-role);if(!v||!await validProof(v.p,m.kind,m.salt)||m.kind!=='good')return gameError('脱出の条件を検証できません。');game.moves.push({id:m.id,owner:1-role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(1-role,'青い駒を出口から脱出させました','escape');return;}
       if(m.t==='final-reveal'&&game.phase==='finished'){if(!Array.isArray(m.pieces)||m.pieces.length!==8)return gameError('終了時の色確認に失敗しました。');const seen=new Set(),reveal={};let good=0,bad=0;for(const item of m.pieces){const p0id='p'+(1-role)+'-';if(typeof item.id!=='string'||!item.id.startsWith(p0id)||seen.has(item.id)||!await validProof({owner:1-role,id:item.id},item.kind,item.salt))return gameError('終了時の駒の色が一致しません。');seen.add(item.id);reveal[item.id]=item.kind;if(item.kind==='good')good++;else bad++;}if(good!==4||bad!==4)return gameError('相手の色の数が正しくありません。');game.opponentRevealed=reveal;game.opponentVerified=true;history('相手の駒の色を確認できました');render();return;}
       if(m.t==='restart-ask'&&role===0&&game.phase==='finished'){history('相手が再戦を希望しています');render();return;}
       if(m.t==='restart'&&role===1&&game.phase==='finished'&&Number.isInteger(m.next)&&m.next===game.round+1){startRound(m.next);return;}
@@ -847,7 +970,7 @@
       if(!solo||!game||game.phase!=='playing'||game.turn!==1)return;
       const cpu=game.pieces.filter(p=>p.owner===1);
       const canEscape=cpu.find(p=>cpuSecrets[p.id]?.kind==='good'&&isExit(p));
-      if(canEscape){game.seq++;game.moves.push({id:canEscape.id,owner:1,type:'escape',seq:game.seq});endGame(1,'青い駒を出口から脱出させました');return;}
+      if(canEscape){game.seq++;game.moves.push({id:canEscape.id,owner:1,type:'escape',seq:game.seq});endGame(1,'青い駒を出口から脱出させました','escape');return;}
       const humans=game.pieces.filter(p=>p.owner===0);
       const moves=[];
       for(const p of cpu){
@@ -1069,6 +1192,11 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('create').addEventListener('click',create);$('join').addEventListener('click',join);$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});$('leave').addEventListener('click',teardown);$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(inviteUrl());$('shareHint').textContent='招待URLをコピーしました。相手に送ってください。';}catch{$('shareHint').textContent='コピーできませんでした。部屋番号 '+room+' を相手に伝えてください。';}});
     $('shareLink').addEventListener('click',async()=>{if(!navigator.share){$('shareHint').textContent='この端末では共有メニューを開けません。部屋番号 '+room+' を伝えてください。';return;}try{await navigator.share({title:'ゴースト・デュエル',text:'この部屋で対戦しよう！ 番号：'+room,url:inviteUrl()});}catch{}});
     $('shuffle').addEventListener('click',reshuffle);$('ready').addEventListener('click',commitOwn);$('escape').addEventListener('click',attemptEscape);$('restart').addEventListener('click',()=>{if(!game||game.phase!=='finished'||!connected)return;if(solo){startRound(game.round+1);return;}if(role===0){const next=game.round+1;send({t:'restart',round:game.round,next});startRound(next);}else{send({t:'restart-ask',round:game.round});$('moveMessage').textContent='再戦をリクエストしました。部屋を作ったプレイヤーが開始できます。';}});
+    if('serviceWorker' in navigator){
+      window.addEventListener('load',()=>{
+        navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('Offline cache not available',e));
+      });
+    }
     const query=new URL(location.href).searchParams.get('room');if(query&&CODE_RE.test(query.toUpperCase()))$('joinCode').value=query.toUpperCase();
     if(!scriptOk)notice('homeMessage','2人オンライン対戦用の通信機能を読み込めません。CPU戦はプレイできます。',true);
   })();
