@@ -192,6 +192,7 @@
         <div id="soloToolbar" class="toolbar hidden"><button id="soloLeave" type="button" class="secondary">← モード選択に戻る</button><span class="badge green">🤖 CPU対戦</span></div>
         <div class="game-tools">
           <span id="networkStatus" class="network-status" aria-live="polite">🟡 準備中</span>
+          <button id="gameReconnect" type="button" class="secondary hidden" style="font-size:12px;padding:5px 9px">🔄 再接続</button>
           <details id="gameSettings" class="game-settings">
             <summary>⚙️ 演出・操作</summary>
             <label for="captureTempo"><span>捕獲演出</span>
@@ -414,9 +415,29 @@
       captureRevealNow=reveal;
       captureRevealTimer=setTimeout(reveal,captureTempo==='quick'?300:1050);
     }
+    function stateFingerprint(){
+      if(!game)return null;
+      // 秘密の色・ソルトは含めない。公開済みの盤面情報だけで同一局面を確認する。
+      return JSON.stringify({
+        round:game.round,seq:game.seq,turn:game.turn,ready:game.ready,
+        pieces:game.pieces.map(p=>[p.id,p.x,p.y]).sort((a,b)=>a[0].localeCompare(b[0])),
+        captured:game.captured,hands:game.hands.map(hand=>hand.map(p=>[p.id,p.kind]))
+      });
+    }
+    function retryConnection(){
+      if(solo||!game||game.phase!=='disconnected'||!room)return;
+      if(!peer||peer.destroyed){setRoomInfo('この通信は復旧できません。「退出」して新しい部屋を作ってください。');return;}
+      setRoomInfo('前の対局に再接続しています…');
+      if(peer.disconnected){try{peer.reconnect();}catch{}}
+      if(role===1){
+        if(conn&&conn.open){setRoomInfo('相手からの確認を待っています。');return;}
+        const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});
+        attach(c);
+      }else setRoomInfo('相手の「再接続」を待っています。両方の端末でゲーム画面を開いてください。');
+    }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ pendingResult=false;hideCapture();hideResult();document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ pendingResult=false;hideCapture();hideResult();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -428,8 +449,43 @@
     function create(){if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
     function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
-    function attach(c){conn=c;let accepted=false;let receiveQueue=Promise.resolve();c.on('open',()=>{accepted=true;connected=true;$('connectBadge').textContent='対戦相手と接続中';$('connectBadge').classList.add('green');setRoomInfo('接続しました。盤面を準備しています。');if(role===1)send({t:'hello',v:2});else send({t:'hello-ready',v:2});});c.on('data',m=>{receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{console.error(e);gameError('処理で問題が発生しました。ゲームを新しく作り直してください。');});});c.on('close',()=>{if(conn!==c)return;connected=false;movePending=null;$('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');setRoomInfo('相手との接続が切れました。再開するには新しい部屋を作ってください。');if(game&&game.phase!=='finished'){game.phase='disconnected';render();}if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号と通信環境を確認してください。');});c.on('error',err=>{if(conn===c){setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));}});}
-    function startRound(n){pendingResult=false;hideCapture();hideResult();if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
+    function attach(c){
+      conn=c;let accepted=false;let receiveQueue=Promise.resolve();
+      c.on('open',()=>{
+        accepted=true;connected=true;
+        $('connectBadge').textContent='対戦相手と接続中';
+        $('connectBadge').classList.add('green');
+        if(game&&game.phase==='disconnected'&&game.resumePhase){
+          setRoomInfo('盤面を照合して再開を確認しています…');
+          send({t:'resume',round:game.round,seq:game.seq,fingerprint:stateFingerprint()});
+        }else{
+          setRoomInfo('接続しました。盤面を準備しています。');
+          if(role===1)send({t:'hello',v:2});
+          else send({t:'hello-ready',v:2});
+        }
+      });
+      c.on('data',m=>{
+        receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{
+          console.error(e);gameError('処理で問題が発生しました。新しい部屋を作り直してください。');
+        });
+      });
+      c.on('close',()=>{
+        if(conn!==c)return;
+        connected=false;movePending=null;
+        $('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');
+        setRoomInfo('接続が切れました。元の画面を開いたままなら再接続できます。');
+        if(game&&game.phase!=='finished'){
+          if(game.phase!=='disconnected')game.resumePhase=game.phase;
+          game.phase='disconnected';
+          $('reconnectButton').classList.remove('hidden');
+          $('gameReconnect').classList.remove('hidden');
+          render();
+        }
+        if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号・通信環境を確認し、「再接続」を押してください。');
+      });
+      c.on('error',err=>{if(conn===c)setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));});
+    }
+    function startRound(n){pendingResult=false;hideCapture();hideResult();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -473,8 +529,36 @@
     function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
+      if(m.t==='resume'){
+        const ok=game&&game.phase==='disconnected'&&game.resumePhase
+           &&m.round===game.round&&m.seq===game.seq&&m.fingerprint===stateFingerprint();
+        if(!ok){
+          send({t:'resume-deny',round:game?.round??null});
+          setRoomInfo('両端末の盤面が一致しません。安全に復元できないため新しい部屋で対戦してください。');
+          return;
+        }
+        send({t:'resume-ok',round:game.round,seq:game.seq,fingerprint:stateFingerprint()});
+        return;
+      }
+      if(m.t==='resume-ok'&&game?.phase==='disconnected'){
+        if(m.round!==game.round||m.seq!==game.seq||m.fingerprint!==stateFingerprint()){
+          setRoomInfo('盤面の照合に失敗しました。新しい部屋を作ってください。');
+          return;
+        }
+        game.phase=game.resumePhase;game.resumePhase=null;
+        $('reconnectButton').classList.add('hidden');
+        $('gameReconnect').classList.add('hidden');
+        setRoomInfo('✅ 元の対局に復帰しました！');
+        history('通信が復旧したため対局を再開しました');
+        render();
+        return;
+      }
+      if(m.t==='resume-deny'){
+        setRoomInfo('相手の対局データが失われたか盤面がずれています。「退出」して新しい部屋を作ってください。');
+        return;
+      }
       if(m.t==='hello-ready'&&role===1&&!game){send({t:'hello',v:2});return;}
-      if(m.t==='hello'&&role===0){if(game&&game.phase!=='disconnected')return;startRound(1);send({t:'start',round:1});return;}
+      if(m.t==='hello'&&role===0){if(game&&game.phase==='disconnected'){send({t:'resume-deny',round:game.round});return;}if(game&&game.phase!=='disconnected')return;startRound(1);send({t:'start',round:1});return;}
       if(m.t==='start'&&role===1&&(!game||game.phase==='disconnected')){startRound(Number.isInteger(m.round)?m.round:1);return;}
       if(!game||m.round!==game.round)return;
       if(m.t==='ready'){if(game.phase!=='setup'||game.ready[1-role])return;const hashes=m.hashes;const expected=game.pieces.filter(p=>p.owner===1-role).map(p=>p.id);if(!hashes||typeof hashes!=='object'||Object.keys(hashes).length!==8||!expected.every(id=>typeof hashes[id]==='string'&&/^[a-f0-9]{64}$/.test(hashes[id])))return gameError('配置の検証に失敗しました。');game.commitments[1-role]=hashes;game.ready[1-role]=true;history('相手が配置を確定しました');maybePlay();render();return;}
@@ -657,6 +741,7 @@
       const network=$('networkStatus');
       network.textContent=solo?'🤖 CPU対戦中':connected?'🟢 オンライン接続中':'🔴 接続が切れました';
       network.classList.toggle('offline',!connected);
+      $('gameReconnect').classList.toggle('hidden',solo||game.phase!=='disconnected');
       $('setupPresets').classList.toggle('hidden',game.phase!=='setup'||game.ready[role]);
       const last=game.lastMove;
       $('lastMoveBar').classList.toggle('hidden',!last||game.phase==='setup');
@@ -684,6 +769,8 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     });
     $('captureTempo').addEventListener('change',()=>{captureTempo=$('captureTempo').value;try{localStorage.setItem('ghostDuelCaptureTempo',captureTempo);}catch{}});
     try{const saved=localStorage.getItem('ghostDuelCaptureTempo');if(saved==='quick'||saved==='normal'){captureTempo=saved;$('captureTempo').value=saved;}}catch{}
+    $('reconnectButton').addEventListener('click',retryConnection);
+    $('gameReconnect').addEventListener('click',retryConnection);
     $('frontBlue').addEventListener('click',()=>applyPreset('good'));
     $('frontRed').addEventListener('click',()=>applyPreset('bad'));
     $('replayLast').addEventListener('click',replayLastMove);
