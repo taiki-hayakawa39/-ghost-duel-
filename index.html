@@ -233,6 +233,33 @@
     @keyframes scene-run{0%{transform:translateX(-7px);opacity:1}58%{opacity:1}100%{transform:translateX(92px);opacity:0}}
     @keyframes scene-spark{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
     @media(prefers-reduced-motion:reduce){.result-scene *{animation:none!important}}
+
+    /* フレンド：端末内の登録と、招待URLのワンタップ共有 */
+    .friend-panel{margin:10px 0 17px;padding:10px 12px;border:1px solid #5c8194;border-radius:12px;background:#132e43}
+    .friend-panel>summary{cursor:pointer;font-weight:850;font-size:15px;min-height:35px;align-content:center}
+    .friend-panel .friend-field{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+    .friend-panel label{font-size:12px;color:#c9ddeb}
+    .friend-panel input{min-height:40px;flex:1;min-width:100px;border:1px solid #7890a5;background:#0e1e30;color:white;border-radius:9px;padding:9px;font-size:16px}
+    .friend-panel button{font-size:12px;padding:8px 10px;min-height:40px}
+    .friend-code{letter-spacing:.15em;color:#ffe5a1;font-weight:900;font-size:clamp(17px,5vw,22px);overflow-wrap:anywhere}
+    .friend-manage{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:9px 0}
+    .friend-manage>*{min-width:0}
+    .friend-manage input{width:135px;flex:1 1 100px}
+    .friend-row{display:flex;justify-content:space-between;align-items:center;gap:7px;border-top:1px solid #486579;padding:9px 2px}
+    .friend-row-info{min-width:0;font-size:13px;overflow-wrap:anywhere}
+    .friend-row-info small{display:block;color:#acc9d9;font-size:11px;letter-spacing:.07em}
+    .friend-row-buttons{display:flex;gap:5px;flex-shrink:0}
+    .friend-row-buttons button{font-size:11px;padding:5px 8px}
+    .friend-hint{font-size:11px;color:#bbd1df;line-height:1.6;margin:7px 0}
+    .opponent-strip{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap;border:1px solid #456b81;border-radius:11px;padding:9px;margin:9px 0;background:#142b40}
+    .opponent-strip span{color:#e0edf9;font-size:13px}
+    .opponent-strip button{min-height:36px;padding:6px 12px;font-size:12px}
+    /* 再戦の同意を両方で確認：勝敗演出を残しつつ次の局へ */
+    .rematch-prompt{margin:12px 0 11px;padding:10px 11px;border:1px solid #a1bdce;border-radius:11px;background:#21374d;color:#fff9e2;font-size:15px;font-weight:850;line-height:1.5}
+    .rematch-buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    .rematch-buttons button{padding:10px 6px;font-size:14px;min-height:48px}
+    .result-friend-add{background:#2e4c61;color:#f7fbff;border-color:#80b3cb;font-size:13px}
+    .rematch-status{font-size:12px;color:#d3e5ef;margin:4px 0}
   </style>
 </head>
 <body>
@@ -248,6 +275,25 @@
           <button id="discardSaved" class="discard" type="button">保存データを消去</button>
           <div class="saved-hint">この端末のブラウザ内だけに保存されます。オンライン対戦は両方の端末に保存データが必要です。</div>
         </div>
+        <details id="friendsPanel" class="friend-panel">
+          <summary>🤝 フレンド <span id="friendCount">0人</span></summary>
+          <div class="friend-field">
+            <label for="myNickname">自分のニックネーム</label>
+            <input id="myNickname" type="text" maxlength="18" placeholder="プレイヤー">
+            <button id="saveNickname" type="button" class="secondary">名前を保存</button>
+          </div>
+          <p class="friend-hint">あなたのフレンドコード（この端末専用）</p>
+          <div class="friend-manage"><strong class="friend-code" id="myFriendCode">準備中</strong><button id="copyFriendCode" type="button" class="secondary">コピー</button></div>
+          <p class="friend-hint">フレンドを追加：相手のコードと呼び名を入力。または対戦した相手を結果画面から登録できます。</p>
+          <div class="friend-manage">
+            <input id="friendCodeInput" type="text" maxlength="10" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="フレンドコード" aria-label="相手のフレンドコード">
+            <input id="friendNameInput" type="text" maxlength="18" placeholder="相手の呼び名" aria-label="フレンドの呼び名">
+            <button id="addFriendCode" type="button" class="primary">登録</button>
+          </div>
+          <p id="friendMessage" class="friend-hint" aria-live="polite"></p>
+          <div id="friendList" aria-label="フレンド一覧"></div>
+          <p class="friend-hint">登録はこの端末内のみ。フレンドのオンライン状態や通知は確認できません。招待ボタンからURLを共有してください。</p>
+        </details>
         <label class="cpu-choice" for="cpuDifficulty"><strong>CPUの強さ</strong><select id="cpuDifficulty" class="cpu-level"><option value="easy">初級・気軽に</option><option value="normal" selected>中級・標準</option><option value="hard">上級・慎重に</option></select></label>
         <button type="button" id="soloStart" class="primary full">🤖 CPUと対戦する（1人用）</button>
         <p class="muted">1台のスマホでCPUと対戦。相手の駒の色は隠され、通信接続を待たずに遊べます。</p>
@@ -273,6 +319,10 @@
         <div id="roomMessage" class="status" aria-live="polite">相手の接続を待っています。</div>
         <div class="toolbar"><button id="copyLink" type="button" class="small secondary">🔗 招待URLをコピー</button><button id="shareLink" type="button" class="small secondary">共有</button><button id="leave" type="button" class="small danger">退出</button></div>
         <div id="shareHint" class="muted">相手には部屋番号か招待URLを伝えてください。</div>
+        <div id="opponentStrip" class="opponent-strip hidden">
+          <span id="opponentIdentity">対戦相手の情報を確認中…</span>
+          <button id="addCurrentFriend" type="button" class="secondary">🤝 フレンドに追加</button>
+        </div>
         <button type="button" id="reconnectButton" class="secondary full hidden">🔄 接続をやり直す</button>
       </section>
       <section id="gamePanel" class="hidden">
@@ -491,8 +541,14 @@
       <h2 id="resultHeading" class="result-heading">勝利！</h2>
       <p id="resultTagline" class="result-tagline">オバケの勝負が決着！</p>
       <p id="resultReason" class="result-reason">対戦が終了しました</p>
+      <div class="rematch-prompt" id="rematchPrompt" aria-live="polite">👻 もう一戦しますか？</div>
       <div class="result-actions">
-        <button type="button" id="resultRestart" class="result-restart">もう一戦</button>
+        <div class="rematch-buttons">
+          <button type="button" id="resultRestart" class="result-restart">はい、再戦！</button>
+          <button type="button" id="resultDecline" class="secondary">今回はやめる</button>
+        </div>
+        <p id="rematchStatus" class="rematch-status" aria-live="polite"></p>
+        <button type="button" id="resultAddFriend" class="result-friend-add hidden">🤝 相手をフレンドに追加</button>
         <button type="button" id="resultInspect" class="result-inspect">盤面と持ち駒を見る</button>
       </div>
     </div>
