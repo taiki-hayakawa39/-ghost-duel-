@@ -341,6 +341,7 @@
     const scriptOk=typeof window.Peer==='function';
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
+    let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
     function randCode(){ const a=new Uint8Array(8);crypto.getRandomValues(a);return Array.from(a,n=>ALPHABET[n%ALPHABET.length]).join(''); }
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
@@ -353,6 +354,7 @@
     function hideCapture(){
       if(captureTimer!==null){clearTimeout(captureTimer);captureTimer=null;}
       if(captureRevealTimer!==null){clearTimeout(captureRevealTimer);captureRevealTimer=null;}
+      captureRevealNow=null;
       $('captureFlash').classList.add('hidden');
       // 最後に取った駒の色が判明してから、勝敗演出に切り替える
       if(pendingResult){pendingResult=false;showResult();}
@@ -373,13 +375,12 @@
       overlay.classList.remove('hidden');
       overlay.querySelector('.result-card').focus({preventScroll:true});
     }
+    function captureDuration(){return captureTempo==='quick'?1550:3650;}
     function showCapture(kind,attackerOwner,numberCaptured){
       if(!['good','bad'].includes(kind))return;
       hideCapture();
-      const flash=$('captureFlash');
-      const mine=attackerOwner===role;
+      const flash=$('captureFlash'),mine=attackerOwner===role;
       const decisive=numberCaptured===4;
-      // 取った／取られたは端末のプレイヤー視点で判断。正体公開までは色と表情を隠す。
       flash.classList.remove('good','bad','revealed','took','taken','favorable','unfavorable');
       flash.classList.add(mine?'took':'taken');
       $('captureSituation').textContent=mine?'👻 つかまえた！':'💦 つかまっちゃった…';
@@ -387,13 +388,15 @@
       $('captureHeading').textContent='……';
       $('captureDetail').textContent='正体を確かめています';
       $('captureGhostArt').setAttribute('aria-label','正体不明のおばけ');
-      $('captureDismiss').classList.add('hidden');
+      $('captureDismiss').textContent='すぐ正体を見る';
+      $('captureDismiss').classList.remove('hidden');
       flash.classList.remove('hidden');
       flash.querySelector('.capture-card').focus({preventScroll:true});
-      // 約1秒のため→赤は舌を出してからかう／青は涙を流す
-      captureRevealTimer=setTimeout(()=>{
-        captureRevealTimer=null;
-        if(flash.classList.contains('hidden'))return;
+      const round=game?.round;
+      function reveal(){
+        if(captureRevealTimer!==null){clearTimeout(captureRevealTimer);captureRevealTimer=null;}
+        captureRevealNow=null;
+        if(flash.classList.contains('hidden')||!game||game.round!==round)return;
         const blue=kind==='good',color=blue?'青':'赤';
         flash.classList.add(kind,'revealed');
         $('captureHeading').textContent=color+'いおばけ！';
@@ -405,15 +408,18 @@
         }else{
           $('captureDetail').textContent=mine?'相手の'+color+'いおばけを取った！':'自分の'+color+'いおばけが取られた！';
         }
-        $('captureDismiss').classList.remove('hidden');
-        captureTimer=setTimeout(hideCapture,2600);
-      },1050);
+        $('captureDismiss').textContent='盤面に戻る';
+        captureTimer=setTimeout(hideCapture,captureTempo==='quick'?1250:2600);
+      }
+      captureRevealNow=reveal;
+      captureRevealTimer=setTimeout(reveal,captureTempo==='quick'?300:1050);
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ pendingResult=false;hideCapture();hideResult(); if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ pendingResult=false;hideCapture();hideResult();document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
+      cpuDifficulty=$('cpuDifficulty').value;
       if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
       teardown();solo=true;connected=true;role=0;room='SOLO';
       $('home').classList.add('hidden');$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
@@ -423,7 +429,7 @@
     function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){conn=c;let accepted=false;let receiveQueue=Promise.resolve();c.on('open',()=>{accepted=true;connected=true;$('connectBadge').textContent='対戦相手と接続中';$('connectBadge').classList.add('green');setRoomInfo('接続しました。盤面を準備しています。');if(role===1)send({t:'hello',v:2});else send({t:'hello-ready',v:2});});c.on('data',m=>{receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{console.error(e);gameError('処理で問題が発生しました。ゲームを新しく作り直してください。');});});c.on('close',()=>{if(conn!==c)return;connected=false;movePending=null;$('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');setRoomInfo('相手との接続が切れました。再開するには新しい部屋を作ってください。');if(game&&game.phase!=='finished'){game.phase='disconnected';render();}if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号と通信環境を確認してください。');});c.on('error',err=>{if(conn===c){setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));}});}
-    function startRound(n){pendingResult=false;hideCapture();hideResult();if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
+    function startRound(n){pendingResult=false;hideCapture();hideResult();if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -449,8 +455,11 @@
     function legal(m,by,allowPending=false){if(!game||game.phase!=='playing'||(movePending&&!allowPending)||game.turn!==by||m.seq!==game.seq+1)return null;const p=findPiece(m.id);if(!p||p.owner!==by)return null;if(m.t==='escape'){if(!isExit(p))return null;return{p,cap:null};}if(m.t!=='move'||!Number.isInteger(m.x)||!Number.isInteger(m.y)||m.x<0||m.x>5||m.y<0||m.y>5||Math.abs(m.x-p.x)+Math.abs(m.y-p.y)!==1)return null;const cap=at(m.x,m.y);if(cap&&cap.owner===by)return null;return{p,cap};}
     async function validProof(piece,kind,salt){if(!piece||!['good','bad'].includes(kind)||!(/^[0-9a-f]{32}$/).test(salt||''))return false;const expected=game.commitments[piece.owner]?.[piece.id];if(!expected)return false;return(await digest(commitmentData(piece,kind,salt)))===expected;}
     function gameError(msg){if(game){game.error=msg;if(game.phase!=='finished')game.phase='disconnected';render();$('moveMessage').textContent=msg;}else setRoomInfo(msg);}
-    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor]);}
-      else history('P'+(attacker.owner+1)+'が駒を動かしました');attacker.x=m.x;attacker.y=m.y;game.seq=m.seq;
+    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const from={x:attacker.x,y:attacker.y};const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor]);}
+      else history('P'+(attacker.owner+1)+'が駒を動かしました');
+      game.lastMove={id:attacker.id,owner:attacker.owner,fromX:from.x,fromY:from.y,toX:m.x,toY:m.y,seq:m.seq};
+      game.moves.push({...game.lastMove,type:'move',captured:target?capturedColor:null});
+      attacker.x=m.x;attacker.y=m.y;game.seq=m.seq;
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
       else {game.turn=1-game.turn;render();}}
@@ -459,9 +468,9 @@
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
     function attemptMove(id,x,y){if(!game||!connected||movePending||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
-      if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu(v.cap?3850:500);return;}
+      if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu(v.cap?captureDuration()+180:500);return;}
       if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
-    function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
+    function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
       if(m.t==='hello-ready'&&role===1&&!game){send({t:'hello',v:2});return;}
@@ -472,7 +481,7 @@
       if(m.t==='move'&&game.phase==='playing'){const v=legal(m,1-role);if(!v)return gameError('相手から不正な手が届きました。');if(v.cap){if(v.cap.owner!==role)return gameError('取られた駒の確認に失敗しました。');const s=game.mySecrets[v.cap.id];send({t:'capture-proof',round:game.round,seq:m.seq,id:v.cap.id,kind:s.kind,salt:s.salt});commitMove(m,s.kind);}else commitMove(m,null);return;}
       if(m.t==='capture-proof'&&movePending&&game.phase==='playing'){const pending=movePending;const v=legal(pending,role,true);
         if(!v||!v.cap||pending.seq!==m.seq||v.cap.id!==m.id)return gameError('相手の取得情報が一致しません。');if(!await validProof(v.cap,m.kind,m.salt))return gameError('相手の駒の色を検証できませんでした。');movePending=null;commitMove(pending,m.kind);return;}
-      if(m.t==='escape'&&game.phase==='playing'){const v=legal(m,1-role);if(!v||!await validProof(v.p,m.kind,m.salt)||m.kind!=='good')return gameError('脱出の条件を検証できません。');game.seq=m.seq;endGame(1-role,'青い駒を出口から脱出させました');return;}
+      if(m.t==='escape'&&game.phase==='playing'){const v=legal(m,1-role);if(!v||!await validProof(v.p,m.kind,m.salt)||m.kind!=='good')return gameError('脱出の条件を検証できません。');game.moves.push({id:m.id,owner:1-role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(1-role,'青い駒を出口から脱出させました');return;}
       if(m.t==='final-reveal'&&game.phase==='finished'){if(!Array.isArray(m.pieces)||m.pieces.length!==8)return gameError('終了時の色確認に失敗しました。');const seen=new Set(),reveal={};let good=0,bad=0;for(const item of m.pieces){const p0id='p'+(1-role)+'-';if(typeof item.id!=='string'||!item.id.startsWith(p0id)||seen.has(item.id)||!await validProof({owner:1-role,id:item.id},item.kind,item.salt))return gameError('終了時の駒の色が一致しません。');seen.add(item.id);reveal[item.id]=item.kind;if(item.kind==='good')good++;else bad++;}if(good!==4||bad!==4)return gameError('相手の色の数が正しくありません。');game.opponentRevealed=reveal;game.opponentVerified=true;history('相手の駒の色を確認できました');render();return;}
       if(m.t==='restart-ask'&&role===0&&game.phase==='finished'){history('相手が再戦を希望しています');render();return;}
       if(m.t==='restart'&&role===1&&game.phase==='finished'&&Number.isInteger(m.next)&&m.next===game.round+1){startRound(m.next);return;}
@@ -491,7 +500,7 @@
       if(!solo||!game||game.phase!=='playing'||game.turn!==1)return;
       const cpu=game.pieces.filter(p=>p.owner===1);
       const canEscape=cpu.find(p=>cpuSecrets[p.id]?.kind==='good'&&isExit(p));
-      if(canEscape){game.seq++;endGame(1,'青い駒を出口から脱出させました');return;}
+      if(canEscape){game.seq++;game.moves.push({id:canEscape.id,owner:1,type:'escape',seq:game.seq});endGame(1,'青い駒を出口から脱出させました');return;}
       const humans=game.pieces.filter(p=>p.owner===0);
       const moves=[];
       for(const p of cpu){
@@ -540,12 +549,37 @@
         return value;
       }
       let chosen=moves[0],best=-Infinity;
-      for(const m of moves){const s=score(m);if(s>best){best=s;chosen=m;}}
+      if(cpuDifficulty==='easy'){
+        chosen=moves[Math.floor(Math.random()*moves.length)];
+      }else{
+        for(const m of moves){
+          let s=score(m);
+          if(cpuDifficulty==='hard'){
+            const p=findPiece(m.id),ownKind=cpuSecrets[p.id].kind;
+            const nearHumans=humans.filter(z=>z.id!==m.target?.id&&manhattan(z.x,z.y,m.x,m.y)===1).length;
+            if(ownKind==='good')s-=nearHumans*15;
+            if(ownKind==='good'&&distExit(m.x,m.y)===0)s+=20;
+            // 色を知らない相手をむやみに取らず、自分の赤を守りすぎない
+            if(m.target&&game.captured[0].bad>=2)s-=(game.captured[0].bad===3?95:11);
+            if(m.target&&game.captured[0].good===3)s+=25;
+            if(ownKind==='bad'&&nearHumans>0)s+=8;
+          }
+          if(s>best){best=s;chosen=m;}
+        }
+      }
       const p=findPiece(chosen.id);
       game.cpuLastMove={id:p.id,x:p.x,y:p.y};
       // 着手を選んだ「あと」で初めて取った駒の色を確認する。
       const captured=chosen.target?game.mySecrets[chosen.target.id]?.kind:null;
       commitMove(chosen,captured);
+    }
+    function applyPreset(frontKind){
+      if(!game||game.phase!=='setup'||game.ready[role])return;
+      const frontY=role===0?4:1;
+      for(const piece of game.pieces.filter(p=>p.owner===role)){
+        game.mySecrets[piece.id].kind=piece.y===frontY?frontKind:(frontKind==='good'?'bad':'good');
+      }
+      selection=null;render();
     }
     function reshuffle(){if(!game||game.phase!=='setup'||game.ready[role])return;const p=game.pieces.filter(p=>p.owner===role);const keys=p.map(z=>game.mySecrets[z.id].kind);const n=new Uint8Array(8);crypto.getRandomValues(n);for(let i=7;i>0;i--){let j=n[i]%(i+1);[keys[i],keys[j]]=[keys[j],keys[i]];}p.forEach((q,i)=>game.mySecrets[q.id].kind=keys[i]);selection=null;render();}
     function handleCell(x,y){if(!game||!connected)return;const target=at(x,y);if(game.phase==='setup'){if(game.ready[role]||!target||target.owner!==role)return;if(!selection){selection=target.id;}else if(selection===target.id){selection=null;}else{const first=game.mySecrets[selection],second=game.mySecrets[target.id];if(first&&second)[first.kind,second.kind]=[second.kind,first.kind];selection=null;}render();return;}
@@ -553,6 +587,53 @@
     function localToGlobal(cx,cy){return role===0?{x:cx,y:cy}:{x:5-cx,y:5-cy};}
 
     // 持ち駒は捕獲した順番のまま表示する。赤青は捕獲時に確定して両端末で共有される。
+
+    function renderReview(){
+      const finished=game.phase==='finished';
+      $('reviewPanel').classList.toggle('hidden',!finished);
+      if(!finished)return;
+      $('reviewSummary').textContent=(game.winner===role?'あなたの勝ち':'相手の勝ち')+'：'+game.reason
+        +' ／ '+game.moves.length+'手（相手の未捕獲駒の色は検証後に盤面で確認できます）';
+      const ol=$('reviewList');ol.replaceChildren();
+      for(const m of game.moves){
+        const li=document.createElement('li');
+        const who=m.owner===role?'あなた':solo?'CPU':'相手';
+        li.textContent=m.type==='escape'
+          ?who+'が青い駒を脱出'
+          :who+'：('+String(m.fromX+1)+','+String(m.fromY+1)+') → ('+String(m.toX+1)+','+String(m.toY+1)+')'
+           +(m.captured?' ／ '+(m.captured==='good'?'青':'赤')+'を捕獲':'');
+        ol.append(li);
+      }
+    }
+    function movedCells(){
+      if(!game?.lastMove)return null;
+      const m=game.lastMove,board=$('board');
+      const pos=(x,y)=>{const cx=role===0?x:5-x,cy=role===0?y:5-y;return board.children[cy*6+cx];};
+      return {from:pos(m.fromX,m.fromY),to:pos(m.toX,m.toY)};
+    }
+    function animateMovedPiece(){
+      const m=game?.lastMove;
+      if(!m||game.phase==='setup')return;
+      const key=game.round+'-'+m.seq;
+      if(lastAnimatedKey===key)return;
+      lastAnimatedKey=key;
+      const cells=movedCells(),ghost=cells?.to?.querySelector('.ghost');
+      if(!ghost||typeof ghost.animate!=='function'||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
+      const src=cells.from.getBoundingClientRect(),dst=cells.to.getBoundingClientRect();
+      ghost.animate(
+        [{transform:'translate('+Math.round(src.left-dst.left)+'px,'+Math.round(src.top-dst.top)+'px) scale(.96)',opacity:.88},
+         {transform:'translate(0,0) scale(1)',opacity:1}],
+        {duration:270,easing:'ease-out'});
+    }
+    function replayLastMove(){
+      const cells=movedCells();if(!cells)return;
+      if(replayTimer!==null){clearTimeout(replayTimer);replayTimer=null;}
+      cells.from.classList.add('replay-focus');cells.to.classList.add('replay-focus');
+      $('board').scrollIntoView({behavior:'smooth',block:'nearest'});
+      replayTimer=setTimeout(()=>{
+        cells.from.classList.remove('replay-focus');cells.to.classList.remove('replay-focus');replayTimer=null;
+      },1500);
+    }
     function renderHand(id,capturedPieces){
       const hand=$(id);hand.replaceChildren();
       if(!capturedPieces.length){
@@ -571,17 +652,46 @@
         mark.setAttribute('aria-hidden','true');token.append(mark);hand.append(token);
       }
     }
-    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
+    function render(){if(!game)return;
+      document.body.classList.add('game-active');
+      const network=$('networkStatus');
+      network.textContent=solo?'🤖 CPU対戦中':connected?'🟢 オンライン接続中':'🔴 接続が切れました';
+      network.classList.toggle('offline',!connected);
+      $('setupPresets').classList.toggle('hidden',game.phase!=='setup'||game.ready[role]);
+      const last=game.lastMove;
+      $('lastMoveBar').classList.toggle('hidden',!last||game.phase==='setup');
+      $('replayLast').disabled=!last;
+      $('lastMoveText').textContent=last?(last.owner===role?'自分':'相手')+'が直前に1マス移動しました':'';
+      renderReview();
+$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
       const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
       if(game.phase==='playing'){$('gameHint').textContent='自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';$('moveMessage').textContent=movePending?'相手の駒の色を確認しています…':myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';}
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
       if(game.phase==='disconnected'){$('gameHint').textContent='相手との通信が切れたため手番を進められません。';$('moveMessage').textContent='「退出」を押して新しい部屋を作成してください。';}
-      const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy');ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(selection&&p?.id===selection)cell.classList.add('selected');if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role))cell.classList.add('valid');const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
-      $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}}
-    $('captureDismiss').addEventListener('click',hideCapture);
-    $('resultInspect').addEventListener('click',hideResult);
+      const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy');ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
+        if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
+        if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
+      }
+      if(selection&&p?.id===selection)cell.classList.add('selected');if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role))cell.classList.add('valid');const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.dataset.pieceId=p?.id||'';cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
+      $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}
+      animateMovedPiece();
+    }
+    $('captureDismiss').addEventListener('click',()=>{
+      if(captureRevealNow){captureRevealNow();return;}
+      hideCapture();
+    });
+    $('captureTempo').addEventListener('change',()=>{captureTempo=$('captureTempo').value;try{localStorage.setItem('ghostDuelCaptureTempo',captureTempo);}catch{}});
+    try{const saved=localStorage.getItem('ghostDuelCaptureTempo');if(saved==='quick'||saved==='normal'){captureTempo=saved;$('captureTempo').value=saved;}}catch{}
+    $('frontBlue').addEventListener('click',()=>applyPreset('good'));
+    $('frontRed').addEventListener('click',()=>applyPreset('bad'));
+    $('replayLast').addEventListener('click',replayLastMove);
+    $('resultInspect').addEventListener('click',()=>{
+      hideResult();
+      $('board').scrollIntoView({behavior:'smooth',block:'nearest'});
+      $('reviewPanel').classList.remove('hidden');
+    });
     $('resultRestart').addEventListener('click',()=>{
       if(!game||game.phase!=='finished'||!connected)return;
       // 既存の再戦フローをそのまま利用し、CPU/ホスト/ゲストを一元化
