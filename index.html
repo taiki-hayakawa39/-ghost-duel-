@@ -21,6 +21,11 @@
     .prize-piece{position:relative;display:grid;place-items:center;width:39px;height:42px;flex:0 0 39px;border-radius:13px 13px 10px 10px;font-size:26px;line-height:1;border:2px solid #91aac1;box-shadow:0 2px 0 rgba(0,0,0,.27);user-select:none}
     .prize-piece.good{background:#b9e7ff;border-color:#65bde9}
     .prize-piece.bad{background:#ffbdc5;border-color:#f38194}
+    /* 駒の赤青と、プレイヤーへの有利不利は独立して示す */
+    .prize-piece.favorable{outline:2px solid #58deb0;outline-offset:1px}
+    .prize-piece.unfavorable{outline:2px solid #f0bb72;outline-offset:1px}
+    .prize-effect{position:absolute;left:-4px;top:-6px;display:grid;place-items:center;width:17px;height:17px;border-radius:50%;font-size:11px;line-height:1;font-weight:950;color:#113126;background:#67e0b4;border:1px solid #103f33}
+    .prize-piece.unfavorable .prize-effect{background:#ffd38f;color:#422611;border-color:#744b20}
     .prize-piece-mark{position:absolute;right:-2px;bottom:-2px;display:grid;place-items:center;width:19px;height:19px;border-radius:50%;border:1px solid #dfecf6;background:#17283b;color:white;font-size:11px;font-weight:850}
     .prize-empty{font-size:12px;color:#9ab4c8}
     .prize-guide{margin:3px 1px 8px;color:#afc5d8;font-size:11px;text-align:center}
@@ -31,6 +36,11 @@
     .capture-card{width:min(410px,100%);min-height:300px;text-align:center;padding:30px 20px 22px;border:3px solid var(--flash-color);border-radius:28px;background:linear-gradient(155deg,var(--flash-tint),#102136 75%);box-shadow:0 15px 55px rgba(0,0,0,.48);animation:capture-pop .27s ease-out}
     .capture-flash.good{--flash-color:#69cafa;--flash-tint:#123b63}
     .capture-flash.bad{--flash-color:#ff8596;--flash-tint:#622538}
+    .capture-verdict{display:inline-block;margin:12px 0 3px;padding:9px 17px;border-radius:999px;font-size:clamp(20px,5.7vw,26px);font-weight:900;letter-spacing:.03em}
+    .capture-flash.favorable .capture-verdict{background:#165e4b;border:2px solid #7af1c4;color:#ddfff2}
+    .capture-flash.unfavorable .capture-verdict{background:#684322;border:2px solid #ffd18b;color:#fff4d8}
+    .capture-flash.favorable .capture-card{box-shadow:0 0 0 3px rgba(109,234,187,.34),0 15px 55px rgba(0,0,0,.48)}
+    .capture-flash.unfavorable .capture-card{box-shadow:0 0 0 3px rgba(255,204,132,.27),0 15px 55px rgba(0,0,0,.48)}
     .capture-dot{display:grid;place-items:center;width:106px;height:106px;margin:3px auto 16px;border:5px solid var(--flash-color);border-radius:50%;background:var(--flash-tint);color:#fff;font-size:60px;font-weight:900;line-height:1}
     .capture-label{margin:0 0 7px;color:#c8d8e8;font-size:15px;font-weight:700;letter-spacing:.06em}
     .capture-heading{margin:0;color:var(--flash-color);font-size:clamp(27px,7.2vw,38px);font-weight:900;line-height:1.3}
@@ -74,24 +84,24 @@
           <p id="gameHint" class="note">自分の駒を2つ選ぶと赤青を入れ替えられます。</p>
           <div class="arena">
             <div class="prize-zone" aria-label="相手の持ち駒">
-              <div class="prize-heading"><strong id="opponentHandTitle">相手の持ち駒</strong><small>相手が取ったあなたの駒</small></div>
+              <div class="prize-heading"><strong id="opponentHandTitle">相手の持ち駒</strong><small>🔴 取らせると有利／🔵 取られると不利</small></div>
               <div id="opponentHand" class="prize-pieces" aria-label="相手が取った駒" aria-live="polite"><span class="prize-empty">まだありません</span></div>
             </div>
             <div class="arena-label">↑ 相手側の脱出口　★ は青の出口</div>
             <div id="board" class="board" role="group" aria-label="6×6の対戦盤"></div>
             <div class="arena-label" style="margin:9px 0 1px">あなた側 ↓</div>
             <div class="prize-zone" aria-label="あなたの持ち駒">
-              <div class="prize-heading"><strong>あなたの持ち駒</strong><small>あなたが取った相手の駒</small></div>
+              <div class="prize-heading"><strong>あなたの持ち駒</strong><small>🔵 取ると有利／🔴 取ると不利</small></div>
               <div id="myHand" class="prize-pieces" aria-label="あなたが取った駒" aria-live="polite"><span class="prize-empty">まだありません</span></div>
             </div>
-            <p class="prize-guide">取った駒はここに残ります（盤面へは戻せません）。</p>
+            <p class="prize-guide">✓＝あなたに有利　!＝あなたに不利 ／ 取った駒は盤面に戻せません</p>
           </div>
           <div id="gameButtons" class="actionbar"><button type="button" id="shuffle" class="secondary">配置をシャッフル</button><button type="button" id="ready" class="primary">配置を確定</button><button type="button" id="escape" class="primary hidden">青い駒を脱出</button><button type="button" id="restart" class="secondary hidden">もう一戦</button></div>
           <div id="moveMessage" class="wait" aria-live="polite">赤4体・青4体を確認して配置を決めてください。</div>
         </div>
         <div class="panel"><h2>対戦ログ</h2><div id="history" class="history" aria-live="polite"><p>ここに対戦の記録が表示されます。</p></div><p class="muted">自分の駒の赤青は自分にだけ表示。取られた駒の色は両者に公開されます。終了時にすべての色を公開します。</p></div>
       </section>
-      <section class="panel"><h2>ルール</h2><div class="reveal-legend"><span>🔵 青は4体／🔴 赤は4体</span><span>🎯 6×6マス・交互に1手</span></div><ul class="tips"><li>自分の駒を上下左右に1マス移動します。相手の駒がある場所へ進むと取れます。</li><li>相手の<strong>青4体を取る</strong>、または自分の<strong>赤4体を取らせる</strong>と勝利です。</li><li>自分の<strong>青</strong>を相手側の左右の出口マスに置き、次の自分の番に「脱出」すると勝利します。</li><li>端末ごとに盤面が回転し、自分の駒が常に下側に表示されます。</li></ul></section>
+      <section class="panel"><h2>ルール</h2><div class="reveal-legend"><span>🔵 青は4体／🔴 赤は4体</span><span>🎯 6×6マス・交互に1手</span></div><ul class="tips"><li>自分の駒を上下左右に1マス移動します。相手の駒がある場所へ進むと取れます。</li><li><strong>自分の赤は取らせると有利、青は取られると不利</strong>。相手の青4体を取るか、自分の赤4体を取らせると勝利です。</li><li>自分の<strong>青</strong>を相手側の左右の出口マスに置き、次の自分の番に「脱出」すると勝利します。</li><li>端末ごとに盤面が回転し、自分の駒が常に下側に表示されます。</li></ul></section>
     </main>
     <footer class="foot">非公式のファン制作ゲーム。画像・ロゴ素材は独自のものです。<br>WebRTCでスマホ同士を接続／公開PeerJSシグナリングを利用</footer>
   </div>
@@ -101,6 +111,7 @@
       <div id="captureDot" class="capture-dot" aria-hidden="true">青</div>
       <p id="captureLabel" class="capture-label">捕獲した駒の色は…</p>
       <h2 id="captureHeading" class="capture-heading">青いおばけ！</h2>
+      <div id="captureVerdict" class="capture-verdict" aria-live="assertive">🎉 有利！</div>
       <p id="captureDetail" class="capture-detail"></p>
       <button id="captureDismiss" class="capture-dismiss" type="button">盤面に戻る</button>
     </div>
@@ -127,23 +138,32 @@
       if(captureTimer!==null){clearTimeout(captureTimer);captureTimer=null;}
       $('captureFlash').classList.add('hidden');
     }
-    function showCapture(kind,attackerOwner){
+    function showCapture(kind,attackerOwner,numberCaptured){
       if(!['good','bad'].includes(kind))return;
       hideCapture();
       const isBlue=kind==='good',mine=attackerOwner===role;
+      const favorable=(mine&&isBlue)||(!mine&&!isBlue);
       const color=isBlue?'青':'赤';
       const who=solo?'CPU':'相手';
+      const decisive=numberCaptured===4;
       const flash=$('captureFlash');
-      flash.classList.remove('good','bad');
-      flash.classList.add(kind);
+      // 捕獲した色と自分にとっての有利不利は別々に表示
+      flash.classList.remove('good','bad','favorable','unfavorable');
+      flash.classList.add(kind,favorable?'favorable':'unfavorable');
       $('captureDot').textContent=color;
-      $('captureLabel').textContent=mine?'🎯 捕獲成功！':'⚠️ 駒が取られた！';
+      $('captureLabel').textContent=mine?'取った駒の正体は…':'取られた駒の正体は…';
       $('captureHeading').textContent=color+'いおばけ！';
-      $('captureDetail').textContent=mine
-        ?'相手の'+color+'い駒を捕獲！ 持ち駒に加わりました。'
-        :who+'に自分の'+color+'い駒を取られました。';
+      $('captureVerdict').textContent=decisive
+        ?(favorable?'🏆 勝利！':'💥 敗北…')
+        :(favorable?'🎉 有利になった！':'⚠️ 不利になった…');
+      const detail=mine
+        ?(isBlue?'相手の青を取れた！ 青をすべて取れば勝利です。':'相手の赤を取ってしまった！ 赤をすべて取ると負けです。')
+        :(isBlue?'大切な青が'+who+'に取られた！ 青をすべて取られると負けです。':'赤を'+who+'に取らせた！ 赤をすべて取らせれば勝利です。');
+      $('captureDetail').textContent=decisive
+        ?(favorable?'勝利条件を達成しました！':'相手の勝利条件が成立しました。')
+        :detail;
       flash.classList.remove('hidden');
-      captureTimer=setTimeout(hideCapture,3000);
+      captureTimer=setTimeout(hideCapture,decisive?4500:3000);
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
@@ -185,7 +205,7 @@
     function legal(m,by,allowPending=false){if(!game||game.phase!=='playing'||(movePending&&!allowPending)||game.turn!==by||m.seq!==game.seq+1)return null;const p=findPiece(m.id);if(!p||p.owner!==by)return null;if(m.t==='escape'){if(!isExit(p))return null;return{p,cap:null};}if(m.t!=='move'||!Number.isInteger(m.x)||!Number.isInteger(m.y)||m.x<0||m.x>5||m.y<0||m.y>5||Math.abs(m.x-p.x)+Math.abs(m.y-p.y)!==1)return null;const cap=at(m.x,m.y);if(cap&&cap.owner===by)return null;return{p,cap};}
     async function validProof(piece,kind,salt){if(!piece||!['good','bad'].includes(kind)||!(/^[0-9a-f]{32}$/).test(salt||''))return false;const expected=game.commitments[piece.owner]?.[piece.id];if(!expected)return false;return(await digest(commitmentData(piece,kind,salt)))===expected;}
     function gameError(msg){if(game){game.error=msg;if(game.phase!=='finished')game.phase='disconnected';render();$('moveMessage').textContent=msg;}else setRoomInfo(msg);}
-    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner);}
+    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor]);}
       else history('P'+(attacker.owner+1)+'が駒を動かしました');attacker.x=m.x;attacker.y=m.y;game.seq=m.seq;
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
@@ -289,7 +309,7 @@
     function localToGlobal(cx,cy){return role===0?{x:cx,y:cy}:{x:5-cx,y:5-cy};}
 
     // 持ち駒は捕獲した順番のまま表示する。赤青は捕獲時に確定して両端末で共有される。
-    function renderHand(id,capturedPieces){
+    function renderHand(id,capturedPieces,isMyHand){
       const hand=$(id);hand.replaceChildren();
       if(!capturedPieces.length){
         const empty=document.createElement('span');empty.className='prize-empty';
@@ -297,17 +317,21 @@
       }
       for(const [index,piece] of capturedPieces.entries()){
         const blue=piece.kind==='good',label=blue?'青':'赤';
+        const favorable=isMyHand?blue:!blue;
         const token=document.createElement('span');
-        token.className='prize-piece '+(blue?'good':'bad');
+        token.className='prize-piece '+(blue?'good':'bad')+' '+(favorable?'favorable':'unfavorable');
         token.textContent='👻';
         token.setAttribute('role','img');
-        token.setAttribute('aria-label',(index+1)+'個目：'+label+'い駒');
+        token.setAttribute('aria-label',(index+1)+'個目：'+label+'い駒（あなたに'+(favorable?'有利':'不利')+'）');
+        const effect=document.createElement('span');
+        effect.className='prize-effect';effect.textContent=favorable?'✓':'!';
+        effect.setAttribute('aria-hidden','true');token.append(effect);
         const mark=document.createElement('span');
         mark.className='prize-piece-mark';mark.textContent=label;
         mark.setAttribute('aria-hidden','true');token.append(mark);hand.append(token);
       }
     }
-    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
+    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role],false);renderHand('myHand',game.hands[role],true);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
       const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
