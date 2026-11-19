@@ -20,10 +20,14 @@
 </head>
 <body>
   <div class="wrap">
-    <header class="title"><div class="logo">👻</div><div><h1>ゴースト・デュエル</h1><p>赤と青を隠して、スマホ2台で心理戦</p></div></header>
+    <header class="title"><div class="logo">👻</div><div><h1>ゴースト・デュエル</h1><p>赤と青を隠して、1人でも2人でも心理戦</p></div></header>
     <main>
       <section id="home" class="panel">
-        <h2>2人で対戦する</h2>
+        <h2>プレイモードを選ぶ</h2>
+        <button type="button" id="soloStart" class="primary full">🤖 CPUと対戦する（1人用）</button>
+        <p class="muted">1台のスマホでCPUと対戦。相手の駒の色は隠され、通信接続を待たずに遊べます。</p>
+        <div class="separator">2人でオンライン対戦</div>
+        <h2>友達と対戦する</h2>
         <p class="muted">1人が部屋を作り、もう1人が部屋番号を入力します。同じWi-Fiでなくても接続できます。</p>
         <button type="button" id="create" class="primary full">部屋を作る</button>
         <div class="separator">または</div>
@@ -40,6 +44,7 @@
         <div id="shareHint" class="muted">相手には部屋番号か招待URLを伝えてください。</div>
       </section>
       <section id="gamePanel" class="hidden">
+        <div id="soloToolbar" class="toolbar hidden"><button id="soloLeave" type="button" class="secondary">← モード選択に戻る</button><span class="badge green">🤖 CPU対戦</span></div>
         <div class="panel">
           <div class="topline"><div><span class="kicker" id="roundLabel">ROUND 1</span><div id="turnText" class="turn" aria-live="polite">初期配置中</div></div><span id="playerBadge" class="badge green">あなたは P1</span></div>
           <p id="gameHint" class="note">自分の駒を2つ選ぶと赤青を入れ替えられます。</p>
@@ -62,6 +67,7 @@
     const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const scriptOk=typeof window.Peer==='function';
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
+    let solo=false, cpuSecrets={}, cpuTimer=null;
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
     function randCode(){ const a=new Uint8Array(8);crypto.getRandomValues(a);return Array.from(a,n=>ALPHABET[n%ALPHABET.length]).join(''); }
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
@@ -72,19 +78,36 @@
     function history(msg){if(!game)return;game.history.unshift(msg);game.history.length=Math.min(game.history.length,18);}
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
+    function startSolo(){
+      if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
+      teardown();solo=true;connected=true;role=0;room='SOLO';
+      $('home').classList.add('hidden');$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
+      startRound(1);
+    }
     function create(){if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
     function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){conn=c;let accepted=false;let receiveQueue=Promise.resolve();c.on('open',()=>{accepted=true;connected=true;$('connectBadge').textContent='対戦相手と接続中';$('connectBadge').classList.add('green');setRoomInfo('接続しました。盤面を準備しています。');if(role===1)send({t:'hello',v:2});else send({t:'hello-ready',v:2});});c.on('data',m=>{receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{console.error(e);gameError('処理で問題が発生しました。ゲームを新しく作り直してください。');});});c.on('close',()=>{if(conn!==c)return;connected=false;movePending=null;$('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');setRoomInfo('相手との接続が切れました。再開するには新しい部屋を作ってください。');if(game&&game.phase!=='finished'){game.phase='disconnected';render();}if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号と通信環境を確認してください。');});c.on('error',err=>{if(conn===c){setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));}});}
-    function startRound(n){game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
+    function startRound(n){if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
-      $('gamePanel').classList.remove('hidden');setRoomInfo('接続中です。自分の駒の配置を決めてください。');history('第'+n+'戦：秘密の配置を始めました');render();}
+      if(solo){
+        const values=['good','good','good','good','bad','bad','bad','bad'];
+        const random=new Uint8Array(8);crypto.getRandomValues(random);
+        for(let i=7;i>0;i--){const j=random[i]%(i+1);[values[i],values[j]]=[values[j],values[i]];}
+        game.pieces.filter(p=>p.owner===1).forEach((p,i)=>{cpuSecrets[p.id]={kind:values[i]};});
+        game.ready[1]=true;
+      }
+      $('gamePanel').classList.remove('hidden');
+      if(!solo)setRoomInfo('接続中です。自分の駒の配置を決めてください。');
+      history('第'+n+'戦：秘密の配置を始めました');render();}
     const digest=async(s)=>{const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(buf),b=>b.toString(16).padStart(2,'0')).join('');};
     function commitmentData(p,kind,salt){return ['ghostduel.v2',room,game.round,p.owner,p.id,kind,salt].join('|');}
-    async function commitOwn(){if(!game||game.phase!=='setup'||game.ready[role]||!connected)return; $('ready').disabled=true;try{const a=[];for(const p of game.pieces.filter(p=>p.owner===role)){const s=game.mySecrets[p.id];a.push([p.id,await digest(commitmentData(p,s.kind,s.salt))]);}const map=Object.fromEntries(a);game.commitments[role]=map;game.ready[role]=true;send({t:'ready',round:game.round,hashes:map});history('あなたが配置を確定しました');maybePlay();render();}catch(e){$('ready').disabled=false;gameError('配置の確定に失敗しました。');}}
+    async function commitOwn(){if(!game||game.phase!=='setup'||game.ready[role]||!connected)return;
+      if(solo){game.ready[role]=true;history('あなたが配置を確定しました。CPUも準備完了！');maybePlay();render();return;}
+      $('ready').disabled=true;try{const a=[];for(const p of game.pieces.filter(p=>p.owner===role)){const s=game.mySecrets[p.id];a.push([p.id,await digest(commitmentData(p,s.kind,s.salt))]);}const map=Object.fromEntries(a);game.commitments[role]=map;game.ready[role]=true;send({t:'ready',round:game.round,hashes:map});history('あなたが配置を確定しました');maybePlay();render();}catch(e){$('ready').disabled=false;gameError('配置の確定に失敗しました。');}}
     function maybePlay(){if(game&&game.phase==='setup'&&game.ready.every(Boolean)){game.phase='playing';game.turn=0;history('両者の配置が決定。P1の手番です。');render();}}
     function ownPiece(id){return game.pieces.find(p=>p.id===id && p.owner===role);}
     function findPiece(id){return game.pieces.find(p=>p.id===id);}
@@ -99,9 +122,13 @@
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
       else {game.turn=1-game.turn;render();}}
     function endGame(winner,reason){game.phase='finished';game.winner=winner;game.reason=reason;history('決着！ '+reason);sendAllSecrets();render();}
-    function sendAllSecrets(){if(!game||!connected)return;const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
-    function attemptMove(id,x,y){if(!game||!connected||movePending||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
-    function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;send(m);game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
+    function sendAllSecrets(){if(!game||!connected)return;
+      if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
+      const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
+    function attemptMove(id,x,y){if(!game||!connected||movePending||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
+      if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu();return;}
+      if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
+    function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
       if(m.t==='hello-ready'&&role===1&&!game){send({t:'hello',v:2});return;}
@@ -117,24 +144,95 @@
       if(m.t==='restart-ask'&&role===0&&game.phase==='finished'){history('相手が再戦を希望しています');render();return;}
       if(m.t==='restart'&&role===1&&game.phase==='finished'&&Number.isInteger(m.next)&&m.next===game.round+1){startRound(m.next);return;}
     }
+    // CPUは相手の駒の色を参照せず、公開された盤面と取得状況だけから手を選ぶ。
+    function queueCpu(){
+      if(!solo||!game||game.phase!=='playing'||game.turn!==1||cpuTimer!==null)return;
+      const round=game.round,seq=game.seq;
+      cpuTimer=setTimeout(()=>{
+        cpuTimer=null;
+        if(!solo||!game||game.phase!=='playing'||game.round!==round||game.seq!==seq||game.turn!==1)return;
+        cpuTurn();
+      },500);
+    }
+    function cpuTurn(){
+      if(!solo||!game||game.phase!=='playing'||game.turn!==1)return;
+      const cpu=game.pieces.filter(p=>p.owner===1);
+      const canEscape=cpu.find(p=>cpuSecrets[p.id]?.kind==='good'&&isExit(p));
+      if(canEscape){game.seq++;endGame(1,'青い駒を出口から脱出させました');return;}
+      const humans=game.pieces.filter(p=>p.owner===0);
+      const moves=[];
+      for(const p of cpu){
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+          const x=p.x+dx,y=p.y+dy;
+          if(x<0||x>5||y<0||y>5)continue;
+          const target=at(x,y);
+          if(target&&target.owner===1)continue;
+          moves.push({t:'move',round:game.round,seq:game.seq+1,id:p.id,x,y,target});
+        }
+      }
+      if(!moves.length){endGame(0,'CPUが動かせる駒を失いました');return;}
+      const manhattan=(x,y,a,b)=>Math.abs(x-a)+Math.abs(y-b);
+      const distExit=(x,y)=>Math.min(manhattan(x,y,0,5),manhattan(x,y,5,5));
+      const threat=(h)=>Math.min(manhattan(h.x,h.y,0,0),manhattan(h.x,h.y,5,0));
+      function score(m){
+        const p=findPiece(m.id),kind=cpuSecrets[m.id].kind;
+        let value=Math.random()*2; // 同点時に動きが単調になるのを防ぐ
+        const before=distExit(p.x,p.y),after=distExit(m.x,m.y);
+        if(kind==='good'){
+          value+=(before-after)*10;
+          if(after===0)value+=25;
+          // 相手の駒の色は見ない。近づくと取られる危険があると評価する。
+          const danger=humans.some(h=>h.id!==m.target?.id&&manhattan(h.x,h.y,m.x,m.y)===1);
+          if(danger)value-=9;
+        }else{
+          const near=(x,y)=>Math.min(...humans.map(h=>manhattan(h.x,h.y,x,y)),10);
+          value+=(near(p.x,p.y)-near(m.x,m.y))*4;
+          if(humans.some(h=>manhattan(h.x,h.y,m.x,m.y)===1))value+=2;
+        }
+        if(m.target){
+          value+=12;
+          const urgent=threat(m.target);
+          if(urgent<=1)value+=35;
+          else if(urgent<=2)value+=10;
+          // 赤をあと1体取ってしまうと敗北するので、色不明の取得は慎重に。
+          if(game.captured[0].bad===3)value-=45;
+        }
+        // 相手が出口に近い場合は、妨害する方向へ動く。
+        for(const h of humans){
+          if(h.id===m.target?.id||threat(h)>2)continue;
+          const oldDist=manhattan(p.x,p.y,h.x,h.y),newDist=manhattan(m.x,m.y,h.x,h.y);
+          value+=(oldDist-newDist)*(kind==='bad'?9:5);
+        }
+        if(game.cpuLastMove?.id===m.id&&game.cpuLastMove.x===m.x&&game.cpuLastMove.y===m.y)value-=12;
+        return value;
+      }
+      let chosen=moves[0],best=-Infinity;
+      for(const m of moves){const s=score(m);if(s>best){best=s;chosen=m;}}
+      const p=findPiece(chosen.id);
+      game.cpuLastMove={id:p.id,x:p.x,y:p.y};
+      // 着手を選んだ「あと」で初めて取った駒の色を確認する。
+      const captured=chosen.target?game.mySecrets[chosen.target.id]?.kind:null;
+      commitMove(chosen,captured);
+    }
     function reshuffle(){if(!game||game.phase!=='setup'||game.ready[role])return;const p=game.pieces.filter(p=>p.owner===role);const keys=p.map(z=>game.mySecrets[z.id].kind);const n=new Uint8Array(8);crypto.getRandomValues(n);for(let i=7;i>0;i--){let j=n[i]%(i+1);[keys[i],keys[j]]=[keys[j],keys[i]];}p.forEach((q,i)=>game.mySecrets[q.id].kind=keys[i]);selection=null;render();}
     function handleCell(x,y){if(!game||!connected)return;const target=at(x,y);if(game.phase==='setup'){if(game.ready[role]||!target||target.owner!==role)return;if(!selection){selection=target.id;}else if(selection===target.id){selection=null;}else{const first=game.mySecrets[selection],second=game.mySecrets[target.id];if(first&&second)[first.kind,second.kind]=[second.kind,first.kind];selection=null;}render();return;}
       if(game.phase!=='playing'||game.turn!==role||movePending)return;if(selection&&target?.id===selection){selection=null;render();return;}if(selection){const p=selectedMine();if(p&&Math.abs(p.x-x)+Math.abs(p.y-y)===1&&(!target||target.owner!==role)){attemptMove(p.id,x,y);return;}}selection=target?.owner===role?target.id:null;render();}
     function localToGlobal(cx,cy){return role===0?{x:cx,y:cy}:{x:5-cx,y:5-cy};}
-    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent='あなたは P'+(role+1);const you=game.captured[role],them=game.captured[1-role];$('lostBlue').textContent=you.good;$('lostRed').textContent=you.bad;$('gotBlue').textContent=them.good;$('gotRed').textContent=them.bad;
-      const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
-      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=role===0?'もう一戦':'再戦をリクエスト';
-      if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?'配置を確定しました。相手の準備を待っています。':'赤4体・青4体を確認して「配置を確定」を押してください。';}
+    function render(){if(!game)return;$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);const you=game.captured[role],them=game.captured[1-role];$('lostBlue').textContent=you.good;$('lostRed').textContent=you.bad;$('gotBlue').textContent=them.good;$('gotRed').textContent=them.bad;
+      const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
+      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
+      if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
       if(game.phase==='playing'){$('gameHint').textContent='自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';$('moveMessage').textContent=movePending?'相手の駒の色を確認しています…':myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';}
-      if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?' ／ 相手の駒の色を検証済み':' ／ 相手の駒の色を確認中');}
+      if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
       if(game.phase==='disconnected'){$('gameHint').textContent='相手との通信が切れたため手番を進められません。';$('moveMessage').textContent='「退出」を押して新しい部屋を作成してください。';}
       const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy');ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(selection&&p?.id===selection)cell.classList.add('selected');if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role))cell.classList.add('valid');const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
       $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}}
+    $('soloStart').addEventListener('click',startSolo);$('soloLeave').addEventListener('click',teardown);
     $('create').addEventListener('click',create);$('join').addEventListener('click',join);$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});$('leave').addEventListener('click',teardown);$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(inviteUrl());$('shareHint').textContent='招待URLをコピーしました。相手に送ってください。';}catch{$('shareHint').textContent='コピーできませんでした。部屋番号 '+room+' を相手に伝えてください。';}});
     $('shareLink').addEventListener('click',async()=>{if(!navigator.share){$('shareHint').textContent='この端末では共有メニューを開けません。部屋番号 '+room+' を伝えてください。';return;}try{await navigator.share({title:'ゴースト・デュエル',text:'この部屋で対戦しよう！ 番号：'+room,url:inviteUrl()});}catch{}});
-    $('shuffle').addEventListener('click',reshuffle);$('ready').addEventListener('click',commitOwn);$('escape').addEventListener('click',attemptEscape);$('restart').addEventListener('click',()=>{if(!game||game.phase!=='finished'||!connected)return;if(role===0){const next=game.round+1;send({t:'restart',round:game.round,next});startRound(next);}else{send({t:'restart-ask',round:game.round});$('moveMessage').textContent='再戦をリクエストしました。部屋を作ったプレイヤーが開始できます。';}});
+    $('shuffle').addEventListener('click',reshuffle);$('ready').addEventListener('click',commitOwn);$('escape').addEventListener('click',attemptEscape);$('restart').addEventListener('click',()=>{if(!game||game.phase!=='finished'||!connected)return;if(solo){startRound(game.round+1);return;}if(role===0){const next=game.round+1;send({t:'restart',round:game.round,next});startRound(next);}else{send({t:'restart-ask',round:game.round});$('moveMessage').textContent='再戦をリクエストしました。部屋を作ったプレイヤーが開始できます。';}});
     const query=new URL(location.href).searchParams.get('room');if(query&&CODE_RE.test(query.toUpperCase()))$('joinCode').value=query.toUpperCase();
-    if(!scriptOk)notice('homeMessage','通信ライブラリを読み込めませんでした。ネットワーク接続とサイト公開設定を確認してください。',true);
+    if(!scriptOk)notice('homeMessage','2人オンライン対戦用の通信機能を読み込めません。CPU戦はプレイできます。',true);
   })();
   </script>
 </body>
