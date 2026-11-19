@@ -52,6 +52,40 @@
     .capture-flash.revealed .capture-ghost-art{animation:ghost-reveal .34s cubic-bezier(.2,1.4,.4,1)}
     @keyframes ghost-reveal{from{opacity:.25;transform:scale(.72) rotate(-6deg)}to{opacity:1;transform:scale(1) rotate(0)}}
     @media(prefers-reduced-motion:reduce){.capture-flash.revealed .capture-ghost-art{animation:none}}
+
+    /* 対局終了演出：勝利は光と紙吹雪、敗北は落ち着いた夜色と涙 */
+    .result-overlay{position:fixed;inset:0;z-index:2400;display:flex;align-items:center;justify-content:center;overflow:auto;padding:20px;background:rgba(5,12,24,.95);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+    .result-overlay.win{--result-edge:#ffe191;--result-ghost:#f3e8ab;--result-ink:#694c21;--result-bg:#594423}
+    .result-overlay.lose{--result-edge:#97a8c9;--result-ghost:#c2ccdf;--result-ink:#304662;--result-bg:#28354f}
+    .result-card{position:relative;isolation:isolate;overflow:hidden;width:min(430px,100%);max-height:calc(100dvh - 40px);overflow-y:auto;text-align:center;border:2px solid var(--result-edge);border-radius:27px;background:radial-gradient(ellipse at 50% 5%,var(--result-bg),#121f34 72%);padding:25px 18px 21px;box-shadow:0 18px 65px rgba(0,0,0,.6)}
+    .result-overlay.win .result-card{animation:result-win-pop .55s cubic-bezier(.22,1.3,.4,1)}
+    .result-overlay.lose .result-card{animation:result-lose-drop .68s ease-out}
+    .result-top{position:relative;z-index:2;margin:0;color:#d5deed;font-size:13px;letter-spacing:.14em;font-weight:750}
+    .result-figure{position:relative;z-index:2;display:grid;place-items:center;height:183px}
+    .result-ghost{width:min(175px,50vw);height:auto;filter:drop-shadow(0 8px 12px rgba(0,0,0,.24))}
+    .result-body{fill:var(--result-ghost);stroke:var(--result-edge);stroke-width:5;stroke-linejoin:round}
+    .result-face{fill:var(--result-ink)}
+    .result-mouth{fill:none;stroke:var(--result-ink);stroke-width:5;stroke-linecap:round}
+    .result-sheen{fill:none;stroke:#fff;stroke-width:9;stroke-linecap:round;opacity:.57}
+    .result-crown{fill:#ffdc66;stroke:#ba8132;stroke-width:3;stroke-linejoin:round}
+    .result-tear{fill:#7acbff;stroke:#367bb3;stroke-width:2}
+    .result-overlay.win .result-ghost{animation:result-ghost-bounce 1.3s ease-in-out infinite}
+    .result-overlay.lose .result-ghost{animation:result-ghost-sigh 2.2s ease-in-out infinite}
+    .result-overlay.win .result-sad,.result-overlay.lose .result-happy{display:none}
+    .result-heading{position:relative;z-index:2;margin:0;font-size:clamp(38px,11vw,58px);line-height:1.2;font-weight:950;color:var(--result-edge);text-shadow:0 3px 18px rgba(0,0,0,.22)}
+    .result-reason{position:relative;z-index:2;margin:13px auto 22px;color:#f3f5fa;font-size:15px;font-weight:650;line-height:1.7;max-width:290px}
+    .result-actions{position:relative;z-index:2;display:grid;gap:10px}
+    .result-restart{background:var(--result-edge);color:#1b2637;border-color:var(--result-edge);font-weight:900}
+    .result-inspect{background:#24394e;color:#f5f7ff}
+    .result-confetti{position:absolute;z-index:1;inset:0;overflow:hidden;pointer-events:none}
+    .result-confetti span{display:none;position:absolute;top:-24px;left:var(--x);height:15px;width:8px;border-radius:2px;background:var(--c);transform:rotate(var(--r));animation:result-confetti-fall var(--t) linear var(--delay) infinite}
+    .result-overlay.win .result-confetti span{display:block}
+    @keyframes result-win-pop{0%{opacity:.3;transform:scale(.75)}70%{transform:scale(1.045)}100%{opacity:1;transform:scale(1)}}
+    @keyframes result-lose-drop{0%{opacity:.3;transform:translateY(-18px)}45%{opacity:1;transform:translateY(12px)}100%{transform:translateY(0)}}
+    @keyframes result-ghost-bounce{0%,100%{transform:translateY(1px) rotate(-3deg)}50%{transform:translateY(-10px) rotate(4deg)}}
+    @keyframes result-ghost-sigh{0%,100%{transform:translateY(-1px) rotate(-2deg)}50%{transform:translateY(8px) rotate(3deg)}}
+    @keyframes result-confetti-fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(600px) rotate(720deg);opacity:.1}}
+    @media(prefers-reduced-motion:reduce){.result-overlay .result-card,.result-overlay .result-ghost,.result-overlay .result-confetti span{animation:none!important}.result-confetti span{display:none!important}}
     @media(max-width:360px){.wrap{padding:12px 9px 30px}.panel{padding:12px}.board{gap:3px}.arena{padding:6px}.cell{border-radius:7px}.ghost{font-size:21px;border-width:1.5px}.prize-zone{padding:7px}.prize-piece{width:36px;height:39px;flex-basis:36px;font-size:23px}.title h1{font-size:20px}}
     @media(min-width:550px){.ghost{font-size:42px}.cell{border-radius:12px}}
   </style>
@@ -134,6 +168,57 @@
       <button id="captureDismiss" class="capture-dismiss hidden" type="button">盤面に戻る</button>
     </div>
   </div>
+
+  <div id="resultOverlay" class="result-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="resultHeading" aria-describedby="resultReason">
+    <div class="result-card" tabindex="-1">
+      <div class="result-confetti" aria-hidden="true">
+      <span style="--x:8%;--c:#ffdc78;--r:0deg;--delay:0s;--t:2.5s"></span>
+      <span style="--x:51%;--c:#f8b6cc;--r:41deg;--delay:-0.55s;--t:2.84s"></span>
+      <span style="--x:8%;--c:#a3dffb;--r:82deg;--delay:-1.1s;--t:3.18s"></span>
+      <span style="--x:51%;--c:#b5f2ce;--r:123deg;--delay:-1.6500000000000001s;--t:3.52s"></span>
+      <span style="--x:8%;--c:#fff2b5;--r:164deg;--delay:-2.2s;--t:3.8600000000000003s"></span>
+      <span style="--x:51%;--c:#ffdc78;--r:205deg;--delay:-2.75s;--t:2.5s"></span>
+      <span style="--x:8%;--c:#f8b6cc;--r:246deg;--delay:0s;--t:2.84s"></span>
+      <span style="--x:51%;--c:#a3dffb;--r:287deg;--delay:-0.55s;--t:3.18s"></span>
+      <span style="--x:8%;--c:#b5f2ce;--r:328deg;--delay:-1.1s;--t:3.52s"></span>
+      <span style="--x:51%;--c:#fff2b5;--r:369deg;--delay:-1.6500000000000001s;--t:3.8600000000000003s"></span>
+      <span style="--x:8%;--c:#ffdc78;--r:410deg;--delay:-2.2s;--t:2.5s"></span>
+      <span style="--x:51%;--c:#f8b6cc;--r:451deg;--delay:-2.75s;--t:2.84s"></span>
+      <span style="--x:8%;--c:#a3dffb;--r:492deg;--delay:0s;--t:3.18s"></span>
+      <span style="--x:51%;--c:#b5f2ce;--r:533deg;--delay:-0.55s;--t:3.52s"></span>
+      <span style="--x:8%;--c:#fff2b5;--r:574deg;--delay:-1.1s;--t:3.8600000000000003s"></span>
+      <span style="--x:51%;--c:#ffdc78;--r:615deg;--delay:-1.6500000000000001s;--t:2.5s"></span>
+      <span style="--x:8%;--c:#f8b6cc;--r:656deg;--delay:-2.2s;--t:2.84s"></span>
+      <span style="--x:51%;--c:#a3dffb;--r:697deg;--delay:-2.75s;--t:3.18s"></span>
+      </div>
+      <p class="result-top">GHOST DUEL · GAME OVER</p>
+      <div class="result-figure">
+        <svg class="result-ghost" viewBox="0 0 200 200" role="img" aria-label="対局結果のおばけ" xmlns="http://www.w3.org/2000/svg">
+          <path class="result-body" d="M35 153 V87 C35 47 61 24 100 24 C138 24 165 47 165 87 V154 Q165 174 151 167 L137 161 Q126 178 113 166 L98 159 L78 172 Q68 177 58 164 L46 169 Q35 170 35 153 Z"/>
+          <path class="result-sheen" d="M57 70 Q75 42 102 47"/>
+          <g class="result-happy">
+            <path class="result-crown" d="M56 31 L50 3 L77 14 L99 0 L121 14 L149 3 L142 31 Z"/>
+            <path class="result-mouth" d="M67 93 Q77 78 87 93 M116 93 Q127 78 137 93"/>
+            <path class="result-mouth" d="M88 119 Q100 134 112 119"/>
+            <circle cx="58" cy="114" r="8" fill="#f7a6a6" opacity=".65"/>
+            <circle cx="143" cy="114" r="8" fill="#f7a6a6" opacity=".65"/>
+          </g>
+          <g class="result-sad">
+            <ellipse class="result-face" cx="77" cy="94" rx="6.5" ry="10"/>
+            <ellipse class="result-face" cx="126" cy="94" rx="6.5" ry="10"/>
+            <path class="result-mouth" d="M89 128 Q101 112 114 128"/>
+            <path class="result-tear" d="M132 104 Q142 118 135 128 Q126 130 125 122 Z"/>
+          </g>
+        </svg>
+      </div>
+      <h2 id="resultHeading" class="result-heading">勝利！</h2>
+      <p id="resultReason" class="result-reason">対戦が終了しました</p>
+      <div class="result-actions">
+        <button type="button" id="resultRestart" class="result-restart">もう一戦</button>
+        <button type="button" id="resultInspect" class="result-inspect">盤面と持ち駒を見る</button>
+      </div>
+    </div>
+  </div>
   <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script>
   (()=>{
@@ -142,7 +227,7 @@
     const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const scriptOk=typeof window.Peer==='function';
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
-    let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null;
+    let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
     function randCode(){ const a=new Uint8Array(8);crypto.getRandomValues(a);return Array.from(a,n=>ALPHABET[n%ALPHABET.length]).join(''); }
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
@@ -156,6 +241,24 @@
       if(captureTimer!==null){clearTimeout(captureTimer);captureTimer=null;}
       if(captureRevealTimer!==null){clearTimeout(captureRevealTimer);captureRevealTimer=null;}
       $('captureFlash').classList.add('hidden');
+      // 最後に取った駒の色が判明してから、勝敗演出に切り替える
+      if(pendingResult){pendingResult=false;showResult();}
+    }
+    function hideResult(){
+      $('resultOverlay').classList.add('hidden');
+      $('resultOverlay').classList.remove('win','lose');
+    }
+    function showResult(){
+      if(!game||game.phase!=='finished')return;
+      const victory=game.winner===role;
+      const overlay=$('resultOverlay');
+      overlay.classList.remove('win','lose');
+      overlay.classList.add(victory?'win':'lose');
+      $('resultHeading').textContent=victory?'勝利！':'敗北…';
+      $('resultReason').textContent=game.reason;
+      $('resultRestart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
+      overlay.classList.remove('hidden');
+      overlay.querySelector('.result-card').focus({preventScroll:true});
     }
     function showCapture(kind,attackerOwner,numberCaptured){
       if(!['good','bad'].includes(kind))return;
@@ -193,7 +296,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ hideCapture(); if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ pendingResult=false;hideCapture();hideResult(); if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
@@ -205,7 +308,7 @@
     function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){conn=c;let accepted=false;let receiveQueue=Promise.resolve();c.on('open',()=>{accepted=true;connected=true;$('connectBadge').textContent='対戦相手と接続中';$('connectBadge').classList.add('green');setRoomInfo('接続しました。盤面を準備しています。');if(role===1)send({t:'hello',v:2});else send({t:'hello-ready',v:2});});c.on('data',m=>{receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{console.error(e);gameError('処理で問題が発生しました。ゲームを新しく作り直してください。');});});c.on('close',()=>{if(conn!==c)return;connected=false;movePending=null;$('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');setRoomInfo('相手との接続が切れました。再開するには新しい部屋を作ってください。');if(game&&game.phase!=='finished'){game.phase='disconnected';render();}if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号と通信環境を確認してください。');});c.on('error',err=>{if(conn===c){setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));}});}
-    function startRound(n){hideCapture();if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
+    function startRound(n){pendingResult=false;hideCapture();hideResult();if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -236,7 +339,7 @@
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
       else {game.turn=1-game.turn;render();}}
-    function endGame(winner,reason){game.phase='finished';game.winner=winner;game.reason=reason;history('決着！ '+reason);sendAllSecrets();render();}
+    function endGame(winner,reason){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;history('決着！ '+reason);sendAllSecrets();render();if(!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
     function sendAllSecrets(){if(!game||!connected)return;
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
@@ -363,6 +466,13 @@
       const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy');ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(selection&&p?.id===selection)cell.classList.add('selected');if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role))cell.classList.add('valid');const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
       $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}}
     $('captureDismiss').addEventListener('click',hideCapture);
+    $('resultInspect').addEventListener('click',hideResult);
+    $('resultRestart').addEventListener('click',()=>{
+      if(!game||game.phase!=='finished'||!connected)return;
+      // 既存の再戦フローをそのまま利用し、CPU/ホスト/ゲストを一元化
+      hideResult();
+      $('restart').click();
+    });
     $('soloStart').addEventListener('click',startSolo);$('soloLeave').addEventListener('click',teardown);
     $('create').addEventListener('click',create);$('join').addEventListener('click',join);$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});$('leave').addEventListener('click',teardown);$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(inviteUrl());$('shareHint').textContent='招待URLをコピーしました。相手に送ってください。';}catch{$('shareHint').textContent='コピーできませんでした。部屋番号 '+room+' を相手に伝えてください。';}});
     $('shareLink').addEventListener('click',async()=>{if(!navigator.share){$('shareHint').textContent='この端末では共有メニューを開けません。部屋番号 '+room+' を伝えてください。';return;}try{await navigator.share({title:'ゴースト・デュエル',text:'この部屋で対戦しよう！ 番号：'+room,url:inviteUrl()});}catch{}});
