@@ -159,6 +159,40 @@
     @media(max-width:360px){body.game-active .wrap{padding-left:7px;padding-right:7px}body.game-active .board{gap:2px}body.game-active .prize-piece{width:27px;height:30px;flex-basis:27px;font-size:18px}}
     @media(max-width:360px){.wrap{padding:12px 9px 30px}.panel{padding:12px}.board{gap:3px}.arena{padding:6px}.cell{border-radius:7px}.ghost{font-size:21px;border-width:1.5px}.prize-zone{padding:7px}.prize-piece{width:36px;height:39px;flex-basis:36px;font-size:23px}.title h1{font-size:20px}}
     @media(min-width:550px){.ghost{font-size:42px}.cell{border-radius:12px}}
+
+    /* 相手へ気持ちを送る短いリアクション */
+    .arena{position:relative}
+    .reaction-bar{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin:8px 0 5px;padding:7px 8px;border:1px solid #435e78;border-radius:11px;background:#14283e}
+    .reaction-bar strong{font-size:12px;color:#cddded;flex:1;min-width:93px}
+    .reaction-button{font-size:24px;min-width:47px;min-height:44px;padding:4px 9px;border-radius:10px;background:#314b62;line-height:1.2}
+    .reaction-bar button:disabled{opacity:.35}
+    .reaction-toast{position:absolute;left:50%;top:43%;z-index:8;transform:translate(-50%,-50%);width:max-content;max-width:94%;border:2px solid #ffe7ae;background:#142a42f0;border-radius:20px;padding:12px 22px;color:#fff;font-size:clamp(21px,7vw,32px);font-weight:900;box-shadow:0 8px 24px #0009;pointer-events:none;animation:react-pop .23s ease-out}
+    .reaction-toast.mine{border-color:#8ce7c6}
+    @keyframes react-pop{from{opacity:.3;transform:translate(-50%,-44%) scale(.8)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+    /* 設定は盤面の見やすさを優先して適用 */
+    #board{margin:0 auto;width:100%;max-width:var(--board-max,520px)}
+    body.board-small{--board-max:310px}
+    body.board-normal{--board-max:440px}
+    body.board-large{--board-max:550px}
+    body.board-forest .arena{background:linear-gradient(135deg,#264e43,#152f2a)}
+    body.board-forest .cell{background:#326458;border-color:#a1c4b0}
+    body.board-forest .cell:nth-child(12n + 1),body.board-forest .cell:nth-child(12n + 3),body.board-forest .cell:nth-child(12n + 5),body.board-forest .cell:nth-child(12n + 8),body.board-forest .cell:nth-child(12n + 10),body.board-forest .cell:nth-child(12n + 12){background:#285348}
+    body.board-warm .arena{background:linear-gradient(145deg,#624635,#38291f)}
+    body.board-warm .cell{background:#ab8062;border-color:#dfb18a}
+    body.board-warm .cell:nth-child(12n + 1),body.board-warm .cell:nth-child(12n + 3),body.board-warm .cell:nth-child(12n + 5),body.board-warm .cell:nth-child(12n + 8),body.board-warm .cell:nth-child(12n + 10),body.board-warm .cell:nth-child(12n + 12){background:#946b53}
+    body.board-contrast .arena{background:#0b101e}
+    body.board-contrast .cell{background:#263a57;border:2px solid #e8f0fc}
+    body.board-contrast .cell:nth-child(12n + 1),body.board-contrast .cell:nth-child(12n + 3),body.board-contrast .cell:nth-child(12n + 5),body.board-contrast .cell:nth-child(12n + 8),body.board-contrast .cell:nth-child(12n + 10),body.board-contrast .cell:nth-child(12n + 12){background:#152139}
+    body.board-contrast .ghost{border-width:3px}
+    body.effects-off *,body.effects-off *::before,body.effects-off *::after{animation:none!important;transition:none!important}
+    body.effects-off .result-confetti span{display:none!important}
+    .saved-room{padding:12px;border:1px solid #6b9a8a;border-radius:12px;background:#173b3a;margin:13px 0}
+    .saved-room strong{font-size:15px}
+    .saved-room p{font-size:12px;line-height:1.7;color:#cfe9e4}
+    .saved-room button{width:100%}
+    .saved-room .discard{margin-top:6px;background:transparent;color:#d7e7e5;font-size:12px;border-color:#668b85}
+    .saved-hint{font-size:11px;color:#b3ccce;line-height:1.5}
+    @media(prefers-reduced-motion:reduce){.reaction-toast{animation:none}}
   </style>
 </head>
 <body>
@@ -167,6 +201,13 @@
     <main>
       <section id="home" class="panel">
         <h2>プレイモードを選ぶ</h2>
+        <div id="savedRoom" class="saved-room hidden" aria-live="polite">
+          <strong>💾 前回の対局を続きから</strong>
+          <p id="savedRoomInfo">端末内に保存された対局があります。</p>
+          <button id="restoreSaved" class="primary" type="button">前回の対局に戻る</button>
+          <button id="discardSaved" class="discard" type="button">保存データを消去</button>
+          <div class="saved-hint">この端末のブラウザ内だけに保存されます。オンライン対戦は両方の端末に保存データが必要です。</div>
+        </div>
         <label class="cpu-choice" for="cpuDifficulty"><strong>CPUの強さ</strong><select id="cpuDifficulty" class="cpu-level"><option value="easy">初級・気軽に</option><option value="normal" selected>中級・標準</option><option value="hard">上級・慎重に</option></select></label>
         <button type="button" id="soloStart" class="primary full">🤖 CPUと対戦する（1人用）</button>
         <p class="muted">1台のスマホでCPUと対戦。相手の駒の色は隠され、通信接続を待たずに遊べます。</p>
@@ -179,7 +220,7 @@
         <input id="joinCode" class="field" type="text" inputmode="text" maxlength="8" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCDEFGH" aria-label="8文字の部屋番号">
         <button type="button" id="join" class="secondary full" style="margin-top:10px">この部屋に参加する</button>
         <div id="homeMessage" class="status hidden" role="alert" style="margin-top:12px"></div>
-        <p class="muted">※ 両方の端末でこのサイトを開き、対戦中は画面を閉じないでください。接続にはインターネットが必要です。</p>
+        <p class="muted">※ オンライン対戦にはインターネットが必要です。途中で閉じた場合は、両端末で「前回の対局に戻る」を選ぶと再開を試せます。通信や保存状態によっては再開できません。</p>
       </section>
       <section id="roomPanel" class="panel hidden">
         <div class="topline"><div><span class="kicker">ROOM CODE</span><div id="roomText" class="code">--------</div></div><span id="connectBadge" class="badge">接続待機中</span></div>
@@ -195,10 +236,19 @@
           <button id="gameReconnect" type="button" class="secondary hidden" style="font-size:12px;padding:5px 9px">🔄 再接続</button>
           <details id="gameSettings" class="game-settings">
             <summary>⚙️ 演出・操作</summary>
-            <label for="captureTempo"><span>捕獲演出</span>
+            <label for="captureTempo"><span>捕獲演出の速度</span>
               <select id="captureTempo"><option value="normal">通常（約4秒）</option><option value="quick">テンポ重視（約2秒）</option></select>
             </label>
-            <p class="muted">捕獲時は「すぐ公開」を押して待ち時間を短縮できます。</p>
+            <label for="boardSize"><span>盤面サイズ</span>
+              <select id="boardSize"><option value="small">小さめ</option><option value="normal" selected>標準</option><option value="large">大きめ</option></select>
+            </label>
+            <label for="boardColor"><span>盤面カラー</span>
+              <select id="boardColor"><option value="night">夜空</option><option value="forest">森</option><option value="warm">木目調</option><option value="contrast">くっきり</option></select>
+            </label>
+            <label for="effectsMode"><span>動き・紙吹雪</span>
+              <select id="effectsMode"><option value="on">あり</option><option value="off">控えめ</option></select>
+            </label>
+            <p class="muted">設定はこの端末に保存されます。小さいスマホでは盤面の最大サイズに制限があります。</p>
           </details>
         </div>
         <div class="panel">
@@ -218,6 +268,14 @@
               <div id="myHand" class="prize-pieces" aria-label="あなたが取った駒" aria-live="polite"><span class="prize-empty">まだありません</span></div>
             </div>
             <p class="prize-guide">取った駒の色は公開され、盤面に戻すことはできません。</p>
+            <div id="reactionToast" class="reaction-toast hidden" aria-live="polite" role="status"></div>
+          </div>
+          <div id="reactionBar" class="reaction-bar hidden" aria-label="対戦相手へのリアクション">
+            <strong>相手にリアクション</strong>
+            <button class="reaction-button" type="button" data-reaction="😆" aria-label="笑うリアクション">😆</button>
+            <button class="reaction-button" type="button" data-reaction="😮" aria-label="驚くリアクション">😮</button>
+            <button class="reaction-button" type="button" data-reaction="👏" aria-label="拍手のリアクション">👏</button>
+            <button class="reaction-button" type="button" data-reaction="👻" aria-label="おばけのリアクション">👻</button>
           </div>
           <div id="setupPresets" class="setup-presets">
             <button id="frontBlue" type="button" class="secondary">🔵 青を前列に</button>
