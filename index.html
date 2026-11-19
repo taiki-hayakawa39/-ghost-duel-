@@ -642,16 +642,54 @@
         captured:game.captured,hands:game.hands.map(hand=>hand.map(p=>[p.id,p.kind]))
       });
     }
+    function rehostSavedRoom(){
+      if(peer){try{peer.destroy();}catch{}}
+      peer=null;peerOpen=false;conn=null;
+      try{
+        peer=new Peer('ghostduelv2-'+room,{debug:0});
+        watchPeer();
+        peer.on('open',()=>{
+          peerOpen=true;
+          setRoomInfo('✅ 保存した部屋を開き直しました。相手の再接続を待っています。');
+        });
+        peer.on('connection',c=>{
+          if(conn&&conn.open){c.on('open',()=>c.close());return;}
+          attach(c);
+        });
+        setRoomInfo('部屋の通信を開き直しています。以前の接続が残っている場合は少し後に再試行してください。');
+      }catch(e){setRoomInfo('部屋の再開に失敗しました。ネットワークを確認してください。');}
+    }
     function retryConnection(){
       if(solo||!game||game.phase!=='disconnected'||!room)return;
-      if(!peer||peer.destroyed){setRoomInfo('この通信は復旧できません。「退出」して新しい部屋を作ってください。');return;}
-      setRoomInfo('前の対局に再接続しています…');
+      setRoomInfo('保存した対局への再接続を試しています…');
+      if(role===0){
+        if(!peer||peer.destroyed||!peerOpen){rehostSavedRoom();return;}
+        if(peer.disconnected){try{peer.reconnect();}catch{}}
+        setRoomInfo('部屋を開いています。相手も「前回の対局に戻る」または「再接続」を選んでください。');
+        return;
+      }
+      if(!peer||peer.destroyed){
+        try{
+          peer=new Peer({debug:0});watchPeer();
+          peer.on('open',()=>{
+            peerOpen=true;
+            if(game?.phase==='disconnected'&&!connected)retryConnection();
+          });
+          return;
+        }catch{setRoomInfo('再接続の準備に失敗しました。通信を確認してください。');return;}
+      }
       if(peer.disconnected){try{peer.reconnect();}catch{}}
-      if(role===1){
-        if(conn&&conn.open){setRoomInfo('相手からの確認を待っています。');return;}
+      if(!peerOpen){
+        setRoomInfo('通信の準備中です。しばらくしてから再接続してください。');
+        return;
+      }
+      if(conn&&conn.open){
+        setRoomInfo('相手との盤面照合を待っています。');return;
+      }
+      try{
         const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});
         attach(c);
-      }else setRoomInfo('相手の「再接続」を待っています。両方の端末でゲーム画面を開いてください。');
+      }catch{setRoomInfo('部屋に接続できません。相手が部屋を復元しているか確認してからもう一度押してください。');}
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
