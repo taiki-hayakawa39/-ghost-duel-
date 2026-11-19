@@ -401,7 +401,7 @@
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
-    const REACTION_EMOJIS=['😆','😮','👏','👻'],PREF_KEY='ghostDuelPrefsV1';
+    const REACTION_EMOJIS=['😆','😮','👏','👻'],PREF_KEY='ghostDuelPrefsV1',SAVE_KEY='ghostDuelSaveV1';
     let reactionTimer=null,lastReactionSent=0,lastReactionReceived=0;
     let boardSize='normal',boardColor='night',effectsMode='on';
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
@@ -414,6 +414,105 @@
     function history(msg){if(!game)return;game.history.unshift(msg);game.history.length=Math.min(game.history.length,18);}
 
 
+
+    // 保存データはこのブラウザ内のみ。オンラインの秘密の色は他の端末へ転送しない。
+    function readSaved(){
+      try{
+        const saved=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
+        if(!saved||saved.v!==1||!Number.isFinite(saved.timestamp)
+           ||saved.timestamp>Date.now()+120000||Date.now()-saved.timestamp>30*86400000)return null;
+        if(saved.role!==0&&saved.role!==1)return null;
+        if(saved.solo?saved.room!=='SOLO':!CODE_RE.test(saved.room))return null;
+        const g=saved.game;
+        if(!g||!Number.isInteger(g.round)||g.round<1||g.round>10000
+           ||!['setup','playing','disconnected'].includes(g.phase)
+           ||!Array.isArray(g.pieces)||g.pieces.length>16
+           ||!Array.isArray(g.hands)||g.hands.length!==2
+           ||!Array.isArray(g.captured)||g.captured.length!==2
+           ||!Array.isArray(g.ready)||g.ready.length!==2
+           ||!g.mySecrets||typeof g.mySecrets!=='object'
+           ||Object.keys(g.mySecrets).length!==8)return null;
+        if(g.phase==='disconnected'&&!['setup','playing'].includes(g.resumePhase))return null;
+        if(saved.solo&&(saved.role!==0||!saved.cpuSecrets||Object.keys(saved.cpuSecrets).length!==8))return null;
+        return saved;
+      }catch{return null;}
+    }
+    function clearAutoSave(){
+      try{localStorage.removeItem(SAVE_KEY);}catch{}
+      $('savedRoom').classList.add('hidden');
+    }
+    function persistGame(){
+      if(!game)return;
+      if(game.phase==='finished'){clearAutoSave();return;}
+      try{localStorage.setItem(SAVE_KEY,JSON.stringify({
+        v:1,timestamp:Date.now(),solo,role,room,
+        game,cpuSecrets:solo?cpuSecrets:null,cpuDifficulty,
+        pendingCapture:!!movePending
+      }));}catch{}
+    }
+    function updateSaveOption(){
+      const saved=readSaved();
+      const el=$('savedRoom');
+      el.classList.toggle('hidden',!saved);
+      if(!saved)return;
+      const pending=!!saved.pendingCapture;
+      $('savedRoomInfo').textContent=(saved.solo?'🤖 CPU戦':'🌐 オンライン対戦 '+saved.room)
+        +' ／ 第'+saved.game.round+'戦'+(pending?' ／ 捕獲確認の途中で中断しました':'')
+        +'。'+(saved.solo?'この端末だけで再開できます。':'両端末で同じ局面を保存している場合に再開できます。');
+      $('restoreSaved').disabled=pending;
+      $('restoreSaved').textContent=pending?'この局面は安全に復元できません':'前回の対局に戻る';
+    }
+    function restoreSavedGame(){
+      const saved=readSaved();
+      if(!saved||saved.pendingCapture){updateSaveOption();return;}
+      if(!saved.solo&&!scriptOk){
+        notice('homeMessage','通信ライブラリが読み込めません。インターネット接続を確認してください。',true);return;
+      }
+      if(!saved.solo&&!window.crypto?.subtle){
+        notice('homeMessage','オンライン対戦の復帰にはHTTPSが必要です。',true);return;
+      }
+      teardown();
+      solo=saved.solo;role=saved.role;room=saved.room;game=saved.game;
+      cpuSecrets=solo?saved.cpuSecrets:{};
+      cpuDifficulty=['easy','normal','hard'].includes(saved.cpuDifficulty)?saved.cpuDifficulty:'normal';
+      $('cpuDifficulty').value=cpuDifficulty;
+      selection=null;movePending=null;finishing=false;
+      $('home').classList.add('hidden');
+      $('gamePanel').classList.remove('hidden');
+      if(solo){
+        connected=true;
+        $('soloToolbar').classList.remove('hidden');
+        render();
+        if(game.phase==='playing'&&game.turn===1)queueCpu(700);
+        return;
+      }
+      // 同じ部屋番号・同じゲーム局面の照合後に限って復帰する。
+      const oldPhase=game.phase==='disconnected'?game.resumePhase:game.phase;
+      game.resumePhase=oldPhase;
+      game.phase='disconnected';
+      game.justResumed=false;
+      connected=false;
+      enterRoom();
+      setRoomInfo('💾 保存した対局を読み込みました。相手も復帰し、盤面が一致すれば再開します。');
+      render();
+      if(role===0){
+        peer=new Peer('ghostduelv2-'+room,{debug:0});
+        watchPeer();
+        peer.on('open',()=>{peerOpen=true;setRoomInfo('復元した部屋を開きました。相手の再接続を待っています。');});
+        peer.on('connection',c=>{
+          if(conn&&conn.open){c.on('open',()=>c.close());return;}
+          attach(c);
+        });
+      }else{
+        peer=new Peer({debug:0});
+        watchPeer();
+        peer.on('open',()=>{
+          peerOpen=true;
+          const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});
+          attach(c);
+        });
+      }
+    }
     function applyDisplaySettings(){
       const cls=document.body.classList;
       cls.remove('board-small','board-normal','board-large','board-forest','board-warm','board-contrast','effects-off');
@@ -537,7 +636,9 @@
       // 秘密の色・ソルトは含めない。公開済みの盤面情報だけで同一局面を確認する。
       return JSON.stringify({
         round:game.round,seq:game.seq,turn:game.turn,ready:game.ready,
+        phase:game.phase==='disconnected'?game.resumePhase:game.phase,
         pieces:game.pieces.map(p=>[p.id,p.x,p.y]).sort((a,b)=>a[0].localeCompare(b[0])),
+        commitments:game.commitments,
         captured:game.captured,hands:game.hands.map(hand=>hand.map(p=>[p.id,p.kind]))
       });
     }
@@ -554,7 +655,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ pendingResult=false;hideCapture();hideResult();clearReaction();lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ clearAutoSave();pendingResult=false;hideCapture();hideResult();clearReaction();lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -892,6 +993,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       if(selection&&p?.id===selection)cell.classList.add('selected');if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role))cell.classList.add('valid');const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.dataset.pieceId=p?.id||'';cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
       $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}
       animateMovedPiece();
+      persistGame();
     }
     $('captureDismiss').addEventListener('click',()=>{
       if(captureRevealNow){captureRevealNow();return;}
@@ -904,6 +1006,11 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       button.addEventListener('click',()=>sendReaction(button.dataset.reaction));
     }
     try{const saved=localStorage.getItem('ghostDuelCaptureTempo');if(saved==='quick'||saved==='normal'){captureTempo=saved;$('captureTempo').value=saved;}}catch{}
+    $('restoreSaved').addEventListener('click',restoreSavedGame);
+    $('discardSaved').addEventListener('click',clearAutoSave);
+    window.addEventListener?.('pagehide',persistGame);
+    document.addEventListener?.('visibilitychange',()=>{if(document.visibilityState==='hidden')persistGame();});
+    updateSaveOption();
     $('reconnectButton').addEventListener('click',retryConnection);
     $('gameReconnect').addEventListener('click',retryConnection);
     $('frontBlue').addEventListener('click',()=>applyPreset('good'));
