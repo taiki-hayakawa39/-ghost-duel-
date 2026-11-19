@@ -683,13 +683,17 @@
       $('reviewSummary').textContent=(game.winner===role?'あなたの勝ち':'相手の勝ち')+'：'+game.reason
         +' ／ '+game.moves.length+'手（相手の未捕獲駒の色は検証後に盤面で確認できます）';
       const ol=$('reviewList');ol.replaceChildren();
-      for(const m of game.moves){
+      const localSquare=(x,y)=>{
+        const cx=role===0?x:5-x,cy=role===0?y:5-y;
+        return '('+(cx+1)+'列,'+(cy+1)+'行)';
+      };
+      for(const [index,m] of game.moves.entries()){
         const li=document.createElement('li');
         const who=m.owner===role?'あなた':solo?'CPU':'相手';
-        li.textContent=m.type==='escape'
+        li.textContent=(index+1)+'手目 '+(m.type==='escape'
           ?who+'が青い駒を脱出'
-          :who+'：('+String(m.fromX+1)+','+String(m.fromY+1)+') → ('+String(m.toX+1)+','+String(m.toY+1)+')'
-           +(m.captured?' ／ '+(m.captured==='good'?'青':'赤')+'を捕獲':'');
+          :who+'：'+localSquare(m.fromX,m.fromY)+' → '+localSquare(m.toX,m.toY)
+           +(m.captured?' ／ '+(m.captured==='good'?'青':'赤')+'を捕獲':''));
         ol.append(li);
       }
     }
