@@ -564,11 +564,130 @@
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
     const REACTION_EMOJIS=['😆','😮','👏','👻'],PREF_KEY='ghostDuelPrefsV1',SAVE_KEY='ghostDuelSaveV1';
+    const FRIEND_KEY='ghostDuelFriendListV1',IDENTITY_KEY='ghostDuelFriendIdV1',NAME_KEY='ghostDuelFriendNameV1';
+    const FRIEND_RE=/^[A-HJ-NP-Z2-9]{10}$/;
+    let localId='',localName='プレイヤー',friends=[],opponentProfile=null,inviteFriendId=null;
+    let rematchLocal=false,rematchRemote=false,rematchStarted=false,rematchMessage='';
     let reactionTimer=null,lastReactionSent=0,lastReactionReceived=0;
     let boardSize='normal',boardColor='night',effectsMode='on';
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
     function randCode(){ const a=new Uint8Array(8);crypto.getRandomValues(a);return Array.from(a,n=>ALPHABET[n%ALPHABET.length]).join(''); }
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
+
+    function normalizeFriendName(name){
+      return typeof name==='string'?name.trim().slice(0,18):'';
+    }
+    function createFriendID(){
+      const random=new Uint8Array(10);
+      if(window.crypto?.getRandomValues)crypto.getRandomValues(random);
+      else for(let i=0;i<random.length;i++)random[i]=Math.floor(Math.random()*256);
+      return Array.from(random,n=>ALPHABET[n%ALPHABET.length]).join('');
+    }
+    function loadFriendIdentity(){
+      try{
+        const old=localStorage.getItem(IDENTITY_KEY);
+        localId=FRIEND_RE.test(old||'')?old:createFriendID();
+        localStorage.setItem(IDENTITY_KEY,localId);
+        localName=normalizeFriendName(localStorage.getItem(NAME_KEY))||'プレイヤー';
+        const list=JSON.parse(localStorage.getItem(FRIEND_KEY)||'[]');
+        if(Array.isArray(list)){
+          const ids=new Set();
+          for(const item of list.slice(0,100)){
+            if(item&&FRIEND_RE.test(item.id)&&item.id!==localId&&!ids.has(item.id)){
+              ids.add(item.id);friends.push({id:item.id,name:normalizeFriendName(item.name)||'フレンド'});
+            }
+          }
+        }
+      }catch{
+        if(!localId)localId=createFriendID();
+      }
+      $('myNickname').value=localName;
+      $('myFriendCode').textContent=localId;
+      renderFriends();
+    }
+    function saveFriends(){
+      try{localStorage.setItem(FRIEND_KEY,JSON.stringify(friends));}catch{}
+    }
+    function renderFriends(){
+      $('friendCount').textContent=friends.length+'人';
+      const root=$('friendList');root.replaceChildren();
+      if(!friends.length){
+        const tip=document.createElement('p');tip.className='friend-hint';
+        tip.textContent='まだ登録されていません。対戦後に追加したり、友達のコードで登録できます。';
+        root.append(tip);return;
+      }
+      for(const item of friends){
+        const row=document.createElement('div');row.className='friend-row';
+        const detail=document.createElement('div');detail.className='friend-row-info';
+        const strong=document.createElement('strong');strong.textContent='👻 '+item.name;
+        const code=document.createElement('small');code.textContent=item.id;
+        detail.append(strong,code);
+        const actions=document.createElement('div');actions.className='friend-row-buttons';
+        const invite=document.createElement('button');invite.type='button';invite.className='primary';
+        invite.textContent='招待';invite.addEventListener('click',()=>inviteSavedFriend(item));
+        const remove=document.createElement('button');remove.type='button';remove.className='secondary';
+        remove.textContent='削除';remove.setAttribute('aria-label',item.name+'をフレンドから削除');
+        remove.addEventListener('click',()=>{
+          friends=friends.filter(x=>x.id!==item.id);saveFriends();renderFriends();updateOpponentFriendUI();
+        });
+        actions.append(invite,remove);row.append(detail,actions);root.append(row);
+      }
+    }
+    function storeFriend(id,name){
+      if(!FRIEND_RE.test(id||'')||id===localId)return false;
+      const safe=normalizeFriendName(name)||'フレンド';
+      const existing=friends.find(item=>item.id===id);
+      if(existing)existing.name=safe;
+      else {
+        if(friends.length>=100){$('friendMessage').textContent='登録できるフレンドは100人までです。';return false;}
+        friends.push({id,name:safe});
+      }
+      saveFriends();renderFriends();updateOpponentFriendUI();
+      $('friendMessage').textContent='✅ '+safe+'を登録しました。';
+      return true;
+    }
+    function updateOpponentFriendUI(){
+      const info=$('opponentStrip'),button=$('addCurrentFriend'),resultButton=$('resultAddFriend');
+      const usable=!solo&&!!opponentProfile;
+      info.classList.toggle('hidden',!usable);
+      resultButton.classList.toggle('hidden',!usable);
+      if(!usable)return;
+      const known=friends.find(x=>x.id===opponentProfile.id);
+      $('opponentIdentity').textContent=(known?'🤝 '+known.name:'👻 '+opponentProfile.name)
+        +' ／ '+opponentProfile.id;
+      const label=known?'✅ フレンド登録済み':'🤝 フレンドに追加';
+      button.textContent=label;resultButton.textContent=label;
+      button.disabled=!!known;resultButton.disabled=!!known;
+      if(inviteFriendId&&inviteFriendId!==opponentProfile.id){
+        $('shareHint').textContent='⚠️ 招待先として選んだフレンドコードと接続先のコードが異なります。';
+      }
+    }
+    function addOpponentFriend(){
+      if(!opponentProfile||solo)return;
+      const current=friends.find(x=>x.id===opponentProfile.id);
+      if(current)return;
+      storeFriend(opponentProfile.id,opponentProfile.name);
+    }
+    function inviteSavedFriend(friend){
+      if(!FRIEND_RE.test(friend.id))return;
+      if(!scriptOk||!window.crypto?.subtle){
+        notice('homeMessage','オンライン対戦の通信機能を確認してください。',true);return;
+      }
+      inviteFriendId=friend.id;
+      create();
+      if(!room)return;
+      const url=inviteUrl();
+      $('shareHint').textContent=friend.name+'さんに招待URLを送ってください。部屋番号：'+room;
+      const notifyFailure=()=>{$('shareHint').textContent=friend.name+'さんにURLを送ってください。コピーできない場合は「共有」を押してください。部屋番号：'+room;};
+      if(navigator.share){
+        navigator.share({title:'ゴースト・デュエル',text:friend.name+'さん、ゴースト・デュエルで対戦しよう！',url})
+          .catch(err=>{if(err?.name!=='AbortError')notifyFailure();});
+      }else if(navigator.clipboard?.writeText){
+        navigator.clipboard.writeText(url).then(()=>{
+          $('shareHint').textContent=friend.name+'さんへの招待URLをコピーしました。メッセージで送ってください。';
+        }).catch(notifyFailure);
+      }else notifyFailure();
+    }
     function notice(where,msg,isError=false){const e=$(where);e.textContent=msg;e.classList.remove('hidden','error','good');if(isError)e.classList.add('error');}
     function busy(v){$('create').disabled=$('join').disabled=v;}
     function setRoomInfo(text){$('roomMessage').textContent=text;}
@@ -742,6 +861,54 @@
       $('resultOverlay').classList.add('hidden');
       $('resultOverlay').classList.remove('win','lose');
     }
+
+    function updateRematchUI(){
+      if(!game||game.phase!=='finished')return;
+      const waiting=rematchLocal&&!rematchRemote;
+      $('rematchPrompt').textContent=solo?'👻 CPUともう一戦しますか？':
+        rematchRemote&&!rematchLocal?'👻 相手から再戦のお誘い！ もう一戦しますか？':
+        waiting?'⏳ 相手の返事を待っています…':
+        '👻 もう一戦しますか？';
+      $('resultRestart').disabled=!connected||rematchLocal;
+      $('resultRestart').textContent=solo?'はい、CPUと再戦！':
+        waiting?'✅ 再戦希望を送信済み':
+        rematchRemote?'🙋 再戦を承諾する':'はい、再戦！';
+      $('resultDecline').disabled=false;
+      $('resultDecline').textContent=solo?'ホームに戻る':'今回はやめる';
+      $('rematchStatus').textContent=solo?'同じ画面のまま新しい局を始められます。':
+        rematchMessage||'両方が「再戦する」を選んだら、自動で次の局が始まります。';
+    }
+    function beginRematchIfReady(){
+      if(!game||solo||game.phase!=='finished'||role!==0
+         ||!connected||rematchStarted||!rematchLocal||!rematchRemote)return;
+      const old=game.round,next=old+1;
+      if(!send({t:'restart',round:old,next}))return;
+      rematchStarted=true;
+      startRound(next);
+    }
+    function requestRematch(){
+      if(!game||game.phase!=='finished'||!connected||rematchStarted)return;
+      if(solo){startRound(game.round+1);return;}
+      if(rematchLocal)return;
+      rematchLocal=true;
+      rematchMessage='相手からの返事を待っています。';
+      if(!send({t:'rematch-yes',round:game.round})){
+        rematchLocal=false;rematchMessage='通信が不安定です。もう一度お試しください。';
+      }
+      updateRematchUI();
+      beginRematchIfReady();
+    }
+    function declineRematch(){
+      if(!game||game.phase!=='finished')return;
+      if(solo){teardown();return;}
+      rematchLocal=false;rematchRemote=false;rematchMessage='今回は終了しました。後から再戦を誘うこともできます。';
+      if(connected)send({t:'rematch-no',round:game.round});
+      hideResult();
+      $('moveMessage').textContent='対局が終了しました。もう一戦したい場合は「再戦する」を押してください。';
+    }
+    function resetRematch(){
+      rematchLocal=false;rematchRemote=false;rematchStarted=false;rematchMessage='';
+    }
     function showResult(){
       if(!game||game.phase!=='finished')return;
       const victory=game.winner===role;
@@ -767,7 +934,8 @@
       };
       $('resultTagline').textContent=kind?variants[kind].title:'対局終了';
       $('resultReason').textContent=kind?variants[kind].reason:game.reason;
-      $('resultRestart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
+      updateRematchUI();
+      updateOpponentFriendUI();
       overlay.classList.remove('hidden');
       overlay.querySelector('.result-card').focus({preventScroll:true});
     }
@@ -872,7 +1040,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ clearAutoSave();pendingResult=false;hideCapture();hideResult();clearReaction();lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ clearAutoSave();resetRematch();opponentProfile=null;inviteFriendId=null;pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -881,13 +1049,14 @@
       $('home').classList.add('hidden');$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
       startRound(1);
     }
-    function create(){if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
-    function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
+    function create(){opponentProfile=null;updateOpponentFriendUI();if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
+    function join(){inviteFriendId=null;opponentProfile=null;updateOpponentFriendUI();const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){
       conn=c;let accepted=false;let receiveQueue=Promise.resolve();
       c.on('open',()=>{
         accepted=true;connected=true;
+        send({t:'profile',id:localId,name:localName});
         $('connectBadge').textContent='対戦相手と接続中';
         $('connectBadge').classList.add('green');
         if(game&&game.phase==='disconnected'&&game.resumePhase){
@@ -920,7 +1089,7 @@
       });
       c.on('error',err=>{if(conn===c)setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));});
     }
-    function startRound(n){pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
+    function startRound(n){resetRematch();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -964,6 +1133,13 @@
     function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました','escape');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
+      if(m.t==='profile'){
+        if(FRIEND_RE.test(m.id||'')&&m.id!==localId&&typeof m.name==='string'){
+          opponentProfile={id:m.id,name:normalizeFriendName(m.name)||'プレイヤー'};
+          updateOpponentFriendUI();
+        }
+        return;
+      }
       if(m.t==='resume'){
         const canResume=game&&((game.phase==='disconnected'&&game.resumePhase)||game.justResumed);
         const ok=canResume&&m.round===game.round&&m.seq===game.seq&&m.fingerprint===stateFingerprint();
@@ -996,6 +1172,22 @@
       if(m.t==='hello'&&role===0){if(game&&game.phase==='disconnected'){send({t:'resume-deny',round:game.round});return;}if(game&&game.phase!=='disconnected')return;startRound(1);send({t:'start',round:1});return;}
       if(m.t==='start'&&role===1&&(!game||game.phase==='disconnected')){startRound(Number.isInteger(m.round)?m.round:1);return;}
       if(!game||m.round!==game.round)return;
+      if(m.t==='rematch-yes'&&game.phase==='finished'&&!solo){
+        rematchRemote=true;
+        rematchMessage=rematchLocal?'両方の希望を確認しています…':'相手がもう一戦したがっています！';
+        updateRematchUI();
+        if(!rematchLocal&&$('captureFlash').classList.contains('hidden'))showResult();
+        beginRematchIfReady();
+        return;
+      }
+      if(m.t==='rematch-no'&&game.phase==='finished'&&!solo){
+        const wasWaiting=rematchLocal;
+        rematchLocal=false;rematchRemote=false;
+        rematchMessage='相手は今回は再戦しないようです。';
+        updateRematchUI();
+        if(wasWaiting&&$('captureFlash').classList.contains('hidden'))showResult();
+        return;
+      }
       if(m.t==='react'){
         if(solo||game.phase!=='playing'||!REACTION_EMOJIS.includes(m.emoji))return;
         const now=Date.now();
@@ -1009,8 +1201,10 @@
         if(!v||!v.cap||pending.seq!==m.seq||v.cap.id!==m.id)return gameError('相手の取得情報が一致しません。');if(!await validProof(v.cap,m.kind,m.salt))return gameError('相手の駒の色を検証できませんでした。');movePending=null;commitMove(pending,m.kind);return;}
       if(m.t==='escape'&&game.phase==='playing'){const v=legal(m,1-role);if(!v||!await validProof(v.p,m.kind,m.salt)||m.kind!=='good')return gameError('脱出の条件を検証できません。');game.moves.push({id:m.id,owner:1-role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(1-role,'青い駒を出口から脱出させました','escape');return;}
       if(m.t==='final-reveal'&&game.phase==='finished'){if(!Array.isArray(m.pieces)||m.pieces.length!==8)return gameError('終了時の色確認に失敗しました。');const seen=new Set(),reveal={};let good=0,bad=0;for(const item of m.pieces){const p0id='p'+(1-role)+'-';if(typeof item.id!=='string'||!item.id.startsWith(p0id)||seen.has(item.id)||!await validProof({owner:1-role,id:item.id},item.kind,item.salt))return gameError('終了時の駒の色が一致しません。');seen.add(item.id);reveal[item.id]=item.kind;if(item.kind==='good')good++;else bad++;}if(good!==4||bad!==4)return gameError('相手の色の数が正しくありません。');game.opponentRevealed=reveal;game.opponentVerified=true;history('相手の駒の色を確認できました');render();return;}
-      if(m.t==='restart-ask'&&role===0&&game.phase==='finished'){history('相手が再戦を希望しています');render();return;}
-      if(m.t==='restart'&&role===1&&game.phase==='finished'&&Number.isInteger(m.next)&&m.next===game.round+1){startRound(m.next);return;}
+      if(m.t==='restart'&&role===1&&game.phase==='finished'
+        &&rematchLocal&&rematchRemote&&Number.isInteger(m.next)&&m.next===game.round+1){
+        startRound(m.next);return;
+      }
     }
     // CPUは相手の駒の色を参照せず、公開された盤面と取得状況だけから手を選ぶ。
     function queueCpu(delay=500){
@@ -1198,7 +1392,7 @@
       renderReview();
 $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
-      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':role===0?'もう一戦':'再戦をリクエスト';
+      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
       if(game.phase==='playing'){$('gameHint').textContent='自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';$('moveMessage').textContent=movePending?'相手の駒の色を確認しています…':myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';}
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
@@ -1238,16 +1432,40 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       $('board').scrollIntoView({behavior:'smooth',block:'nearest'});
       $('reviewPanel').classList.remove('hidden');
     });
-    $('resultRestart').addEventListener('click',()=>{
-      if(!game||game.phase!=='finished'||!connected)return;
-      // 既存の再戦フローをそのまま利用し、CPU/ホスト/ゲストを一元化
-      hideResult();
-      $('restart').click();
+    $('resultRestart').addEventListener('click',requestRematch);
+    $('resultDecline').addEventListener('click',declineRematch);
+    $('resultAddFriend').addEventListener('click',addOpponentFriend);
+    $('addCurrentFriend').addEventListener('click',addOpponentFriend);
+    loadFriendIdentity();
+    $('saveNickname').addEventListener('click',()=>{
+      localName=normalizeFriendName($('myNickname').value)||'プレイヤー';
+      $('myNickname').value=localName;
+      try{localStorage.setItem(NAME_KEY,localName);}catch{}
+      $('friendMessage').textContent='✅ ニックネームを保存しました。';
+      if(connected&&!solo)send({t:'profile',id:localId,name:localName});
+    });
+    $('copyFriendCode').addEventListener('click',async()=>{
+      try{await navigator.clipboard.writeText(localId);$('friendMessage').textContent='✅ コードをコピーしました。友達に送ってください。';}
+      catch{$('friendMessage').textContent='あなたのコードは '+localId+' です。コピーできない場合は手動で伝えてください。';}
+    });
+    $('addFriendCode').addEventListener('click',()=>{
+      const id=$('friendCodeInput').value.trim().toUpperCase();
+      const name=normalizeFriendName($('friendNameInput').value)||'フレンド';
+      if(!FRIEND_RE.test(id)||id===localId){
+        $('friendMessage').textContent='10文字のフレンドコードを確認してください。自分自身は登録できません。';return;
+      }
+      if(storeFriend(id,name)){
+        $('friendCodeInput').value='';$('friendNameInput').value='';
+      }
     });
     $('soloStart').addEventListener('click',startSolo);$('soloLeave').addEventListener('click',teardown);
     $('create').addEventListener('click',create);$('join').addEventListener('click',join);$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});$('leave').addEventListener('click',teardown);$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(inviteUrl());$('shareHint').textContent='招待URLをコピーしました。相手に送ってください。';}catch{$('shareHint').textContent='コピーできませんでした。部屋番号 '+room+' を相手に伝えてください。';}});
     $('shareLink').addEventListener('click',async()=>{if(!navigator.share){$('shareHint').textContent='この端末では共有メニューを開けません。部屋番号 '+room+' を伝えてください。';return;}try{await navigator.share({title:'ゴースト・デュエル',text:'この部屋で対戦しよう！ 番号：'+room,url:inviteUrl()});}catch{}});
-    $('shuffle').addEventListener('click',reshuffle);$('ready').addEventListener('click',commitOwn);$('escape').addEventListener('click',attemptEscape);$('restart').addEventListener('click',()=>{if(!game||game.phase!=='finished'||!connected)return;if(solo){startRound(game.round+1);return;}if(role===0){const next=game.round+1;send({t:'restart',round:game.round,next});startRound(next);}else{send({t:'restart-ask',round:game.round});$('moveMessage').textContent='再戦をリクエストしました。部屋を作ったプレイヤーが開始できます。';}});
+    $('shuffle').addEventListener('click',reshuffle);$('ready').addEventListener('click',commitOwn);$('escape').addEventListener('click',attemptEscape);$('restart').addEventListener('click',()=>{
+      if(!game||game.phase!=='finished'||!connected)return;
+      showResult();
+      requestRematch();
+    });
     if('serviceWorker' in navigator){
       window.addEventListener('load',()=>{
         navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('Offline cache not available',e));
