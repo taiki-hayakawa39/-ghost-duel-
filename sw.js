@@ -17,19 +17,33 @@ self.addEventListener('fetch',event=>{
   if(url.origin!==self.location.origin)return; // PeerJS/CDNはキャッシュしない
   if(request.mode==='navigate'){
     event.respondWith(
-      fetch(request).then(response=>{
-        if(response.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.put('./index.html',copy)));}
-        return response;
-      }).catch(()=>caches.match('./index.html').then(cached=>cached||Response.error()))
+      (async()=>{
+        try{
+          const response=await fetch(request);
+          if(response.ok){
+            const copy=response.clone();
+            try{const cache=await caches.open(CACHE_NAME);await cache.put('./index.html',copy);}catch{}
+          }
+          return response;
+        }catch{
+          return (await caches.match('./index.html'))||Response.error();
+        }
+      })()
     );
     return;
   }
   const pathname=url.pathname;
   if(!/\.(?:png|webmanifest|svg)$/.test(pathname))return;
   event.respondWith(
-    caches.match(request).then(cached=>cached||fetch(request).then(response=>{
-      if(response.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.put(request,copy)));}
+    (async()=>{
+      const cached=await caches.match(request);
+      if(cached)return cached;
+      const response=await fetch(request);
+      if(response.ok){
+        const copy=response.clone();
+        try{const cache=await caches.open(CACHE_NAME);await cache.put(request,copy);}catch{}
+      }
       return response;
-    }))
+    })()
   );
 });
