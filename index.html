@@ -14,6 +14,19 @@
     button{font:inherit;cursor:pointer;min-height:44px;border:1px solid #61728b;border-radius:11px;background:#233750;color:#f0f7ff;padding:9px 15px;font-weight:700;transition:filter .1s}button:focus-visible,.cell:focus-visible{outline:3px solid var(--accent);outline-offset:2px}button:not(:disabled):active{filter:brightness(1.3)}button:disabled{opacity:.45;cursor:not-allowed}.primary{color:#1c2534;background:var(--accent);border-color:#e4b76c}.secondary{background:#273d54}.danger{border-color:#8e4853;background:#462934}.full{width:100%}.separator{margin:16px 0;color:var(--muted);text-align:center;font-size:12px;display:flex;align-items:center;gap:10px}.separator:before,.separator:after{content:"";height:1px;background:var(--line);flex:1}.code{font-weight:850;letter-spacing:.17em;font-size:clamp(26px,8vw,38px);color:var(--accent);overflow-wrap:anywhere;margin:5px 0 12px}.status{border-radius:11px;background:#26364b;padding:11px 13px;font-size:14px;line-height:1.6}.status.error{background:#52333c;color:#ffd7d7}.status.good{background:#163f3a;color:#bafbe4}.kicker{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.06em}.tips{margin:12px 0 0;padding:0 0 0 19px;color:var(--muted);font-size:13px;line-height:1.9}
     .topline{display:flex;justify-content:space-between;gap:10px;align-items:center}.badge{padding:6px 10px;border-radius:999px;border:1px solid #7b8a9d;color:#dfeaff;font-size:12px;white-space:nowrap}.badge.green{color:#aaf6da;border-color:#539c80}.toolbar{display:flex;gap:8px;justify-content:space-between;align-items:stretch;flex-wrap:wrap;margin:12px 0}.toolbar .small{font-size:12px;padding:8px 9px}.counts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:11px 0 14px}.stat{border:1px solid var(--line);border-radius:11px;padding:9px;background:#18263b}.stat b{font-size:12px}.stat div{font-size:14px;margin-top:4px}.colorblue{color:var(--blue)}.colorred{color:var(--red)}
     .arena{border:1px solid #4a607a;background:linear-gradient(135deg,#264056,#15293e);border-radius:17px;padding:10px;margin-top:9px}.arena-label{font-size:12px;color:#c1d4e8;text-align:center;letter-spacing:.1em;margin:1px 0 9px}.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;width:100%;touch-action:manipulation}.cell{width:100%;aspect-ratio:1;min-height:0;display:grid;place-items:center;position:relative;border:1px solid #648098;border-radius:9px;background:#37536b;padding:3px}.cell:nth-child(12n + 1),.cell:nth-child(12n + 3),.cell:nth-child(12n + 5),.cell:nth-child(12n + 8),.cell:nth-child(12n + 10),.cell:nth-child(12n + 12){background:#304960}.cell.valid{outline:3px solid var(--accent);outline-offset:-4px;border-color:#ffe1b6;z-index:1}.cell.selected{background:#405f7c;outline:3px solid #f8d491;outline-offset:-3px}.cell.exit{border-color:#e0bf77}.exit-mark{position:absolute;top:0px;right:3px;font-size:12px;color:#f8dc95;line-height:1.2}.ghost{width:80%;height:80%;display:flex;justify-content:center;align-items:center;position:relative;border-radius:40% 40% 34% 34%;font-size:clamp(19px,6vw,37px);line-height:1;border:2px solid #8394ac;background:var(--light);color:#334155;box-shadow:0 4px 0 #0c1c2b4f}.ghost.good{background:#a9ddfd;border-color:#70bdeb;color:#1a597e}.ghost.bad{background:#ffbac1;border-color:#ea8190;color:#9d2e42}.ghost.enemy{background:#dbe6ee;border-color:#a2afc1;color:#4c6176}.mark{position:absolute;bottom:0;right:1px;font-size:10px;border-radius:10px;background:#22384e;color:#fff;width:14px;height:14px;display:grid;place-items:center}.cell .choice{position:absolute;inset:auto 4px 3px auto;min-width:15px;padding:0 2px;min-height:16px;font-size:10px;border-radius:99px;background:#f5cf89;color:#263445;font-weight:850}.note{font-size:13px;line-height:1.7;color:var(--muted);margin:10px 0}.actionbar{display:flex;gap:8px;margin-top:13px}.actionbar>*{flex:1}.history{max-height:160px;overflow:auto;font-size:12px;color:var(--muted);padding:8px 10px;background:#102036;border-radius:8px;line-height:1.7}.history p{margin:5px 0}.turn{font-size:17px;font-weight:800;color:var(--accent)}.reveal-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}.foot{margin-top:20px;text-align:center;font-size:11px;color:#8298ad}.wait{background:#2f435b;border-radius:10px;padding:11px;margin:10px 0;font-size:13px;color:#eef4ff}
+
+    /* 捕獲した色を大きく表示：両プレイヤーに共通 */
+    .capture-flash{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,11,23,.83);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px)}
+    .capture-card{width:min(410px,100%);min-height:300px;text-align:center;padding:30px 20px 22px;border:3px solid var(--flash-color);border-radius:28px;background:linear-gradient(155deg,var(--flash-tint),#102136 75%);box-shadow:0 15px 55px rgba(0,0,0,.48);animation:capture-pop .27s ease-out}
+    .capture-flash.good{--flash-color:#69cafa;--flash-tint:#123b63}
+    .capture-flash.bad{--flash-color:#ff8596;--flash-tint:#622538}
+    .capture-dot{display:grid;place-items:center;width:106px;height:106px;margin:3px auto 16px;border:5px solid var(--flash-color);border-radius:50%;background:var(--flash-tint);color:#fff;font-size:60px;font-weight:900;line-height:1}
+    .capture-label{margin:0 0 7px;color:#c8d8e8;font-size:15px;font-weight:700;letter-spacing:.06em}
+    .capture-heading{margin:0;color:var(--flash-color);font-size:clamp(27px,7.2vw,38px);font-weight:900;line-height:1.3}
+    .capture-detail{margin:12px 0 22px;font-size:16px;font-weight:650;color:#f2f6ff;line-height:1.5}
+    .capture-dismiss{width:100%;background:#f5f8ff;color:#122138;border-color:#e4efff}
+    @keyframes capture-pop{from{opacity:.65;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+    @media(prefers-reduced-motion:reduce){.capture-card{animation:none}}
     @media(max-width:360px){.wrap{padding:12px 9px 30px}.panel{padding:12px}.board{gap:3px}.arena{padding:6px}.cell{border-radius:7px}.ghost{font-size:21px;border-width:1.5px}.counts{gap:6px}.stat{padding:7px}.title h1{font-size:20px}}
     @media(min-width:550px){.ghost{font-size:42px}.cell{border-radius:12px}}
   </style>
@@ -59,6 +72,16 @@
     </main>
     <footer class="foot">非公式のファン制作ゲーム。画像・ロゴ素材は独自のものです。<br>WebRTCでスマホ同士を接続／公開PeerJSシグナリングを利用</footer>
   </div>
+
+  <div id="captureFlash" class="capture-flash hidden" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="capture-card">
+      <div id="captureDot" class="capture-dot" aria-hidden="true">青</div>
+      <p id="captureLabel" class="capture-label">捕獲した駒の色は…</p>
+      <h2 id="captureHeading" class="capture-heading">青いおばけ！</h2>
+      <p id="captureDetail" class="capture-detail"></p>
+      <button id="captureDismiss" class="capture-dismiss" type="button">盤面に戻る</button>
+    </div>
+  </div>
   <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
   <script>
   (()=>{
@@ -67,7 +90,7 @@
     const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const scriptOk=typeof window.Peer==='function';
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
-    let solo=false, cpuSecrets={}, cpuTimer=null;
+    let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null;
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
     function randCode(){ const a=new Uint8Array(8);crypto.getRandomValues(a);return Array.from(a,n=>ALPHABET[n%ALPHABET.length]).join(''); }
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
@@ -76,9 +99,32 @@
     function setRoomInfo(text){$('roomMessage').textContent=text;}
     function inviteUrl(){const u=new URL(location.href);u.searchParams.set('room',room);return u.href;}
     function history(msg){if(!game)return;game.history.unshift(msg);game.history.length=Math.min(game.history.length,18);}
+
+    function hideCapture(){
+      if(captureTimer!==null){clearTimeout(captureTimer);captureTimer=null;}
+      $('captureFlash').classList.add('hidden');
+    }
+    function showCapture(kind,attackerOwner,lostCount){
+      if(!['good','bad'].includes(kind))return;
+      hideCapture();
+      const isBlue=kind==='good',mine=attackerOwner===role;
+      const color=isBlue?'青':'赤';
+      const who=solo?'CPU':'相手';
+      const flash=$('captureFlash');
+      flash.classList.remove('good','bad');
+      flash.classList.add(kind);
+      $('captureDot').textContent=color;
+      $('captureLabel').textContent=mine?'🎯 捕獲成功！':'⚠️ 駒が取られた！';
+      $('captureHeading').textContent=color+'いおばけ！';
+      $('captureDetail').textContent=mine
+        ?'相手の'+color+'い駒を捕獲！（'+lostCount+' / 4体）'
+        :who+'に自分の'+color+'い駒を取られました。（'+lostCount+' / 4体）';
+      flash.classList.remove('hidden');
+      captureTimer=setTimeout(hideCapture,3000);
+    }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ hideCapture(); if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
@@ -90,7 +136,7 @@
     function join(){const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){conn=c;let accepted=false;let receiveQueue=Promise.resolve();c.on('open',()=>{accepted=true;connected=true;$('connectBadge').textContent='対戦相手と接続中';$('connectBadge').classList.add('green');setRoomInfo('接続しました。盤面を準備しています。');if(role===1)send({t:'hello',v:2});else send({t:'hello-ready',v:2});});c.on('data',m=>{receiveQueue=receiveQueue.then(()=>handleMessage(m)).catch(e=>{console.error(e);gameError('処理で問題が発生しました。ゲームを新しく作り直してください。');});});c.on('close',()=>{if(conn!==c)return;connected=false;movePending=null;$('connectBadge').textContent='切断';$('connectBadge').classList.remove('green');setRoomInfo('相手との接続が切れました。再開するには新しい部屋を作ってください。');if(game&&game.phase!=='finished'){game.phase='disconnected';render();}if(!accepted&&role===1)setRoomInfo('接続できませんでした。番号と通信環境を確認してください。');});c.on('error',err=>{if(conn===c){setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));}});}
-    function startRound(n){if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
+    function startRound(n){hideCapture();if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],history:[],winner:null,reason:'',opponentRevealed:{},opponentVerified:false};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
@@ -116,7 +162,7 @@
     function legal(m,by,allowPending=false){if(!game||game.phase!=='playing'||(movePending&&!allowPending)||game.turn!==by||m.seq!==game.seq+1)return null;const p=findPiece(m.id);if(!p||p.owner!==by)return null;if(m.t==='escape'){if(!isExit(p))return null;return{p,cap:null};}if(m.t!=='move'||!Number.isInteger(m.x)||!Number.isInteger(m.y)||m.x<0||m.x>5||m.y<0||m.y>5||Math.abs(m.x-p.x)+Math.abs(m.y-p.y)!==1)return null;const cap=at(m.x,m.y);if(cap&&cap.owner===by)return null;return{p,cap};}
     async function validProof(piece,kind,salt){if(!piece||!['good','bad'].includes(kind)||!(/^[0-9a-f]{32}$/).test(salt||''))return false;const expected=game.commitments[piece.owner]?.[piece.id];if(!expected)return false;return(await digest(commitmentData(piece,kind,salt)))===expected;}
     function gameError(msg){if(game){game.error=msg;if(game.phase!=='finished')game.phase='disconnected';render();$('moveMessage').textContent=msg;}else setRoomInfo(msg);}
-    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');}
+    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');showCapture(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor]);}
       else history('P'+(attacker.owner+1)+'が駒を動かしました');attacker.x=m.x;attacker.y=m.y;game.seq=m.seq;
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました');}
@@ -126,7 +172,7 @@
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
     function attemptMove(id,x,y){if(!game||!connected||movePending||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
-      if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu();return;}
+      if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu(v.cap?3250:500);return;}
       if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
     function attemptEscape(){if(!game||!selectedMine()||!connected)return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
@@ -145,14 +191,14 @@
       if(m.t==='restart'&&role===1&&game.phase==='finished'&&Number.isInteger(m.next)&&m.next===game.round+1){startRound(m.next);return;}
     }
     // CPUは相手の駒の色を参照せず、公開された盤面と取得状況だけから手を選ぶ。
-    function queueCpu(){
+    function queueCpu(delay=500){
       if(!solo||!game||game.phase!=='playing'||game.turn!==1||cpuTimer!==null)return;
       const round=game.round,seq=game.seq;
       cpuTimer=setTimeout(()=>{
         cpuTimer=null;
         if(!solo||!game||game.phase!=='playing'||game.round!==round||game.seq!==seq||game.turn!==1)return;
         cpuTurn();
-      },500);
+      },delay);
     }
     function cpuTurn(){
       if(!solo||!game||game.phase!=='playing'||game.turn!==1)return;
@@ -227,6 +273,7 @@
       if(game.phase==='disconnected'){$('gameHint').textContent='相手との通信が切れたため手番を進められません。';$('moveMessage').textContent='「退出」を押して新しい部屋を作成してください。';}
       const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy');ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(selection&&p?.id===selection)cell.classList.add('selected');if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role))cell.classList.add('valid');const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
       $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}}
+    $('captureDismiss').addEventListener('click',hideCapture);
     $('soloStart').addEventListener('click',startSolo);$('soloLeave').addEventListener('click',teardown);
     $('create').addEventListener('click',create);$('join').addEventListener('click',join);$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});$('leave').addEventListener('click',teardown);$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(inviteUrl());$('shareHint').textContent='招待URLをコピーしました。相手に送ってください。';}catch{$('shareHint').textContent='コピーできませんでした。部屋番号 '+room+' を相手に伝えてください。';}});
     $('shareLink').addEventListener('click',async()=>{if(!navigator.share){$('shareHint').textContent='この端末では共有メニューを開けません。部屋番号 '+room+' を伝えてください。';return;}try{await navigator.share({title:'ゴースト・デュエル',text:'この部屋で対戦しよう！ 番号：'+room,url:inviteUrl()});}catch{}});
