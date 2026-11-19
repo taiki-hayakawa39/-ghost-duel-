@@ -359,6 +359,10 @@
       $('captureFlash').classList.add('hidden');
       // 最後に取った駒の色が判明してから、勝敗演出に切り替える
       if(pendingResult){pendingResult=false;showResult();}
+      else if(solo&&game?.phase==='playing'&&game.turn===1&&cpuTimer!==null){
+        // 捕獲結果を早送りした場合はCPUの待機も短縮する。
+        clearTimeout(cpuTimer);cpuTimer=null;queueCpu(250);
+      }
     }
     function hideResult(){
       $('resultOverlay').classList.add('hidden');
@@ -530,8 +534,8 @@
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
       if(m.t==='resume'){
-        const ok=game&&game.phase==='disconnected'&&game.resumePhase
-           &&m.round===game.round&&m.seq===game.seq&&m.fingerprint===stateFingerprint();
+        const canResume=game&&((game.phase==='disconnected'&&game.resumePhase)||game.justResumed);
+        const ok=canResume&&m.round===game.round&&m.seq===game.seq&&m.fingerprint===stateFingerprint();
         if(!ok){
           send({t:'resume-deny',round:game?.round??null});
           setRoomInfo('両端末の盤面が一致しません。安全に復元できないため新しい部屋で対戦してください。');
@@ -545,7 +549,7 @@
           setRoomInfo('盤面の照合に失敗しました。新しい部屋を作ってください。');
           return;
         }
-        game.phase=game.resumePhase;game.resumePhase=null;
+        game.phase=game.resumePhase;game.resumePhase=null;game.justResumed=true;
         $('reconnectButton').classList.add('hidden');
         $('gameReconnect').classList.add('hidden');
         setRoomInfo('✅ 元の対局に復帰しました！');
@@ -739,8 +743,8 @@
     function render(){if(!game)return;
       document.body.classList.add('game-active');
       const network=$('networkStatus');
-      network.textContent=solo?'🤖 CPU対戦中':connected?'🟢 オンライン接続中':'🔴 接続が切れました';
-      network.classList.toggle('offline',!connected);
+      network.textContent=solo?'🤖 CPU対戦中':game.phase==='disconnected'?(connected?'🟡 盤面照合中':'🔴 接続が切れました'):connected?'🟢 オンライン接続中':'🔴 切断';
+      network.classList.toggle('offline',!connected||game.phase==='disconnected');
       $('gameReconnect').classList.toggle('hidden',solo||game.phase!=='disconnected');
       $('setupPresets').classList.toggle('hidden',game.phase!=='setup'||game.ready[role]);
       const last=game.lastMove;
