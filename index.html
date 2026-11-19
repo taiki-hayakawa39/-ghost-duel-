@@ -86,6 +86,27 @@
     @keyframes result-ghost-sigh{0%,100%{transform:translateY(-1px) rotate(-2deg)}50%{transform:translateY(8px) rotate(3deg)}}
     @keyframes result-confetti-fall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(600px) rotate(720deg);opacity:.1}}
     @media(prefers-reduced-motion:reduce){.result-overlay .result-card,.result-overlay .result-ghost,.result-overlay .result-confetti span{animation:none!important}.result-confetti span{display:none!important}}
+
+    /* 捕まえた側／捕まった側で登場アニメーションを変える */
+    .capture-flash.revealed.good .capture-red-face{display:none}
+    .capture-flash.revealed.bad .capture-blue-face{display:none}
+    .capture-flash.took .capture-card{border-style:solid}
+    .capture-flash.taken .capture-card{border-style:dashed}
+    .capture-situation{display:inline-block;margin:0 auto 10px;padding:6px 14px;border:1px solid #819cb7;border-radius:999px;background:#1c304a;color:#ecf2f9;font-size:14px;font-weight:850;letter-spacing:.05em}
+    .capture-flash.took .capture-situation{border-color:#9ad8b9;background:#24483a}
+    .capture-flash.taken .capture-situation{border-color:#e5bba7;background:#523932}
+    .capture-tongue{fill:#fa4c7c;stroke:#a62155;stroke-width:3.5;stroke-linejoin:round;transform-origin:50% 0;transform-box:fill-box}
+    .capture-tear{fill:#38aefa;stroke:#1686cb;stroke-width:2.5}
+    .capture-flash.revealed.bad .capture-tongue{animation:ghost-tongue-wiggle .6s ease-in-out infinite}
+    .capture-flash.revealed.good .capture-tear.one{animation:ghost-tear-drop 1.15s ease-in infinite}
+    .capture-flash.revealed.good .capture-tear.two{animation:ghost-tear-drop 1.15s ease-in .5s infinite}
+    .capture-flash.revealed.took .capture-ghost-art{animation:ghost-grab-pop .54s cubic-bezier(.2,1.4,.4,1)}
+    .capture-flash.revealed.taken .capture-ghost-art{animation:ghost-loss-drop .62s ease-out}
+    @keyframes ghost-grab-pop{0%{opacity:.1;transform:translateY(35px) scale(.65) rotate(-12deg)}65%{transform:translateY(-12px) scale(1.12) rotate(6deg)}100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+    @keyframes ghost-loss-drop{0%{opacity:.35;transform:translateY(-35px) rotate(8deg)}55%{transform:translateY(12px) rotate(-5deg)}100%{opacity:1;transform:translateY(0) rotate(0)}}
+    @keyframes ghost-tongue-wiggle{0%,100%{transform:rotate(-10deg) translateX(-3px)}50%{transform:rotate(10deg) translateX(3px)}}
+    @keyframes ghost-tear-drop{0%{opacity:0;transform:translateY(-5px)}15%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translateY(20px)}}
+    @media(prefers-reduced-motion:reduce){.capture-flash.revealed .capture-ghost-art,.capture-flash.revealed .capture-tongue,.capture-flash.revealed .capture-tear{animation:none!important}}
     @media(max-width:360px){.wrap{padding:12px 9px 30px}.panel{padding:12px}.board{gap:3px}.arena{padding:6px}.cell{border-radius:7px}.ghost{font-size:21px;border-width:1.5px}.prize-zone{padding:7px}.prize-piece{width:36px;height:39px;flex-basis:36px;font-size:23px}.title h1{font-size:20px}}
     @media(min-width:550px){.ghost{font-size:42px}.cell{border-radius:12px}}
   </style>
@@ -146,19 +167,33 @@
 
   <div id="captureFlash" class="capture-flash hidden" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="capture-card" tabindex="-1">
+      <div id="captureSituation" class="capture-situation">つかまえた！</div>
       <p id="captureLabel" class="capture-label">このおばけの色は…？</p>
       <div class="capture-art">
         <svg id="captureGhostArt" class="capture-ghost-art" viewBox="0 0 220 230" role="img" aria-label="正体不明のおばけ" xmlns="http://www.w3.org/2000/svg">
           <path class="capture-ghost-body" d="M36 176 V100 C36 54 67 21 110 21 C153 21 184 54 184 100 V178 Q184 193 172 190 L153 184 Q145 198 135 192 L110 183 L89 194 Q80 199 70 187 L49 192 Q36 194 36 176 Z"/>
           <path d="M62 67 Q88 37 119 45" fill="none" stroke="white" stroke-opacity=".5" stroke-width="10" stroke-linecap="round"/>
-          <g class="capture-face">
-            <ellipse class="capture-eye" cx="81" cy="113" rx="8" ry="12"/>
-            <ellipse class="capture-eye" cx="140" cy="113" rx="8" ry="12"/>
-            <circle cx="84" cy="108" r="2.7" fill="#fff"/>
-            <circle cx="143" cy="108" r="2.7" fill="#fff"/>
-            <circle class="capture-cheek" cx="62" cy="136" r="12"/>
-            <circle class="capture-cheek" cx="159" cy="136" r="12"/>
-            <path class="capture-mouth" d="M99 141 Q110 155 122 141"/>
+          <!-- 赤：ウインクしながら舌を出して「べーっ！」 -->
+          <g class="capture-face capture-red-face">
+            <path class="capture-mouth" d="M67 110 Q82 98 97 110"/>
+            <ellipse class="capture-eye" cx="140" cy="111" rx="8" ry="12"/>
+            <circle cx="143" cy="106" r="3" fill="#fff"/>
+            <circle class="capture-cheek" cx="63" cy="134" r="11"/>
+            <circle class="capture-cheek" cx="160" cy="134" r="11"/>
+            <path d="M92 137 Q110 150 129 137 Q129 157 110 159 Q92 158 92 137 Z" fill="#622545" stroke="#622545" stroke-width="3"/>
+            <path class="capture-tongue" d="M100 145 Q110 141 120 146 L120 170 Q119 178 110 179 Q101 178 100 169 Z"/>
+            <path d="M110 158 L110 171" fill="none" stroke="#b82860" stroke-width="2.2" stroke-linecap="round"/>
+          </g>
+          <!-- 青：しょんぼりした目と大粒の涙 -->
+          <g class="capture-face capture-blue-face">
+            <path class="capture-mouth" d="M67 104 Q80 100 94 111 M126 111 Q140 100 153 104" opacity=".8"/>
+            <ellipse class="capture-eye" cx="82" cy="117" rx="8" ry="11"/>
+            <ellipse class="capture-eye" cx="140" cy="117" rx="8" ry="11"/>
+            <circle cx="84" cy="111" r="2.5" fill="#fff"/>
+            <circle cx="142" cy="111" r="2.5" fill="#fff"/>
+            <path class="capture-mouth" d="M98 151 Q110 135 122 151"/>
+            <path class="capture-tear one" d="M78 126 Q88 144 83 154 Q74 160 71 150 Q71 143 78 126 Z"/>
+            <path class="capture-tear two" d="M143 126 Q154 144 149 154 Q140 160 134 152 Q133 143 143 126 Z"/>
           </g>
           <text class="capture-question" x="110" y="148" text-anchor="middle">?</text>
         </svg>
@@ -266,8 +301,10 @@
       const flash=$('captureFlash');
       const mine=attackerOwner===role;
       const decisive=numberCaptured===4;
-      // 最初の画面では捕獲色のクラス・文字・イラスト色を一切設定しない
-      flash.classList.remove('good','bad','revealed','favorable','unfavorable');
+      // 取った／取られたは端末のプレイヤー視点で判断。正体公開までは色と表情を隠す。
+      flash.classList.remove('good','bad','revealed','took','taken','favorable','unfavorable');
+      flash.classList.add(mine?'took':'taken');
+      $('captureSituation').textContent=mine?'👻 つかまえた！':'💦 つかまっちゃった…';
       $('captureLabel').textContent=mine?'取ったおばけの正体は…？':'取られたおばけの正体は…？';
       $('captureHeading').textContent='……';
       $('captureDetail').textContent='正体を確かめています';
@@ -275,20 +312,20 @@
       $('captureDismiss').classList.add('hidden');
       flash.classList.remove('hidden');
       flash.querySelector('.capture-card').focus({preventScroll:true});
-      // 1秒ほどためてから、赤か青かをイラスト主体で公開
+      // 約1秒のため→赤は舌を出してからかう／青は涙を流す
       captureRevealTimer=setTimeout(()=>{
         captureRevealTimer=null;
         if(flash.classList.contains('hidden'))return;
-        const color=kind==='good'?'青':'赤';
+        const blue=kind==='good',color=blue?'青':'赤';
         flash.classList.add(kind,'revealed');
         $('captureHeading').textContent=color+'いおばけ！';
-        $('captureGhostArt').setAttribute('aria-label',color+'いおばけ');
-        $('captureLabel').textContent='正体は…';
+        $('captureGhostArt').setAttribute('aria-label',blue?'泣いている青いおばけ':'舌を出してからかう赤いおばけ');
+        $('captureLabel').textContent=blue?'えーん…！':'べーっ！';
         if(decisive){
-          const winner=kind==='good'?attackerOwner:1-attackerOwner;
+          const winner=blue?attackerOwner:1-attackerOwner;
           $('captureDetail').textContent=winner===role?'あなたの勝利！':'相手の勝利';
         }else{
-          $('captureDetail').textContent=mine?'相手の'+color+'い駒を取りました':'自分の'+color+'い駒が取られました';
+          $('captureDetail').textContent=mine?'相手の'+color+'いおばけを取った！':'自分の'+color+'いおばけが取られた！';
         }
         $('captureDismiss').classList.remove('hidden');
         captureTimer=setTimeout(hideCapture,2600);
