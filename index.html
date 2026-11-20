@@ -490,14 +490,76 @@
     .cell.transform-target:after{content:"⇄";z-index:5;position:absolute;right:-5px;top:-9px;padding:2px 5px;background:#8b4b56;border:1px solid #ffe4b9;border-radius:6px;color:white;font-size:15px;font-weight:900;pointer-events:none}
     .cell.transform-recent{box-shadow:inset 0 0 0 3px #f2be93}
     .mode-action-note{font-size:11px;color:#b8cde1}
+
+    /* ホームは4タブ構成にし、対局中の盤面を優先する */
+    body:not(.game-active) .wrap{padding-bottom:calc(102px + env(safe-area-inset-bottom,0px))}
+    .hub-home .hub-tab-panel{min-height:250px;margin:11px 0;padding:16px 15px 19px}
+    .hub-home .hub-heading{padding:0 0 13px;margin:0 0 15px;border-bottom:1px solid #43576f}
+    .hub-home .hub-heading>span{font-size:10px;color:#8ebcd8;font-weight:900;letter-spacing:.18em}
+    .hub-home .hub-heading h2{font-size:22px;color:#fff3d8;margin:5px 0 4px}
+    .hub-home .hub-heading p{font-size:12px;line-height:1.65;color:#b8cee1;margin:0}
+    .hub-home .hub-old-heading{font-size:15px;margin:5px 0 10px;color:#d9e8f7}
+    .hub-home .hub-section-title{margin:16px 0 9px;padding-bottom:7px;
+      font-size:15px;color:#ffe2aa;border-bottom:1px solid #45617b}
+    .hub-home #tab-friends>.friend-panel,.hub-home #tab-stats>.stats-panel{margin:0}
+    .hub-home #tab-friends>.friend-panel[open],.hub-home #tab-stats>.stats-panel[open]{border-radius:12px}
+    .hub-home #tab-friends summary,.hub-home #tab-stats summary{font-size:15px;min-height:46px}
+    .hub-settings-link{display:flex;align-items:center;justify-content:space-between;
+      gap:8px;min-height:44px;width:100%;padding:9px 12px;margin:0 0 15px;
+      font-size:13px;text-align:left;background:#1c344b;border-color:#56758c;color:#d3e8fb}
+    .hub-settings-link span{font-size:20px}
+    .hub-home #rulesPanel{margin:19px 0 0}
+    .bottom-tabs{position:fixed;z-index:900;bottom:0;left:0;right:0;
+      padding:5px 8px calc(5px + env(safe-area-inset-bottom,0px));
+      border-top:1px solid #59718a;background:linear-gradient(180deg,#1a2c42fb,#0f1d31fe);
+      box-shadow:0 -8px 28px #07101bb3;-webkit-tap-highlight-color:transparent}
+    .bottom-tabs-inner{width:min(620px,100%);margin:0 auto;display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+    .bottom-tab{display:flex;flex-direction:column;justify-content:center;align-items:center;
+      gap:1px;min-width:0;min-height:60px;padding:6px 2px 5px;
+      border:1px solid transparent;border-radius:11px;background:transparent;color:#b4c8d9;font-weight:750}
+    .bottom-tab-icon{font-size:22px;line-height:1.35;filter:saturate(.8)}
+    .bottom-tab-label{font-size:12px;line-height:1.35;white-space:nowrap}
+    .bottom-tab[aria-selected="true"]{background:#314c67;border-color:#7292a9;color:#fff0bb}
+    .bottom-tab[aria-selected="true"] .bottom-tab-icon{filter:saturate(1.2)}
+    .bottom-tab:focus-visible{outline:3px solid #f6ce8b;outline-offset:-3px}
+    body.game-active .bottom-tabs{display:none!important}
+    @media(max-width:360px){
+      .hub-home .hub-tab-panel{padding:13px 10px 16px}
+      .bottom-tabs{padding-left:3px;padding-right:3px}
+      .bottom-tabs-inner{gap:2px}
+      .bottom-tab{min-height:57px}
+      .bottom-tab-icon{font-size:20px}
+      .bottom-tab-label{font-size:11px}
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header class="title"><div class="logo">👻</div><div><h1>ゴースト・デュエル</h1><p>赤と青を隠して、1人でも2人でも心理戦</p></div></header>
     <main>
-      <section id="home" class="panel">
-        <h2>プレイモードを選ぶ</h2>
+      <section id="home" class="hub-home">
+        <!-- タブの中へ既存フォームを移動。各入力のIDとイベントはそのまま保持する。 -->
+        <div id="tab-play" class="panel hub-tab-panel" role="tabpanel" aria-labelledby="navPlay" tabindex="0">
+          <div class="hub-heading"><span>GHOST DUEL</span><h2>🎮 対戦する</h2><p>好きなルールで、1人でも友達とも遊べます。</p></div>
+        </div>
+        <div id="tab-friends" class="panel hub-tab-panel hidden" role="tabpanel" aria-labelledby="navFriends" tabindex="0">
+          <div class="hub-heading"><span>YOUR FRIENDS</span><h2>🤝 フレンド</h2><p>コードで友達を登録して、対戦に招待しよう。</p></div>
+        </div>
+        <div id="tab-stats" class="panel hub-tab-panel hidden" role="tabpanel" aria-labelledby="navStats" tabindex="0">
+          <div class="hub-heading"><span>MATCH RECORDS</span><h2>🏆 戦績</h2><p>勝率や連勝記録、最近の対局を振り返ろう。</p></div>
+        </div>
+        <div id="tab-settings" class="panel hub-tab-panel hidden" role="tabpanel" aria-labelledby="navSettings" tabindex="0">
+          <div class="hub-heading"><span>PREFERENCES</span><h2>⚙️ 設定</h2><p>見た目やCPUの調整、アプリの更新はこちら。</p></div>
+          <h3 class="hub-section-title">👻 オバケの見た目</h3>
+          <div id="tab-settings-appearance"></div>
+          <h3 class="hub-section-title">🤖 CPUの設定</h3>
+          <div id="tab-settings-cpu"></div>
+          <h3 class="hub-section-title">🔄 アプリの管理</h3>
+          <div id="tab-settings-app"></div>
+          <div id="tab-settings-rules"></div>
+        </div>
+        <h2 class="hub-old-heading">プレイモードを選ぶ</h2>
         <div id="savedRoom" class="saved-room hidden" aria-live="polite">
           <strong>💾 前回の対局を続きから</strong>
           <p id="savedRoomInfo">端末内に保存された対局があります。</p>
@@ -597,6 +659,7 @@
         </div>
         <button type="button" id="soloStart" class="primary full">🤖 CPUと対戦する（1人用）</button>
         <p class="muted">1台のスマホでCPUと対戦。相手の駒の色は隠され、通信接続を待たずに遊べます。</p>
+        <button id="openCpuSettings" type="button" class="hub-settings-link">⚙️ CPUの強さ・性格を変更 <span aria-hidden="true">›</span></button>
         <div class="separator">2人でオンライン対戦</div>
         <h2>友達と対戦する</h2>
         <p class="muted">1人が部屋を作り、もう1人が部屋番号を入力します。同じWi-Fiでなくても接続できます。</p>
@@ -751,6 +814,15 @@
     </main>
     <footer class="foot">非公式のファン制作ゲーム。画像・ロゴ素材は独自のものです。<br>WebRTCでスマホ同士を接続／公開PeerJSシグナリングを利用</footer>
   </div>
+
+  <nav id="bottomTabs" class="bottom-tabs hidden" role="tablist" aria-label="メインメニュー">
+    <div class="bottom-tabs-inner">
+      <button id="navPlay" type="button" class="bottom-tab active" role="tab" aria-controls="tab-play" aria-selected="true" tabindex="0"><span class="bottom-tab-icon" aria-hidden="true">🎮</span><span class="bottom-tab-label">対戦</span></button>
+      <button id="navFriends" type="button" class="bottom-tab" role="tab" aria-controls="tab-friends" aria-selected="false" tabindex="-1"><span class="bottom-tab-icon" aria-hidden="true">🤝</span><span class="bottom-tab-label">フレンド</span></button>
+      <button id="navStats" type="button" class="bottom-tab" role="tab" aria-controls="tab-stats" aria-selected="false" tabindex="-1"><span class="bottom-tab-icon" aria-hidden="true">🏆</span><span class="bottom-tab-label">戦績</span></button>
+      <button id="navSettings" type="button" class="bottom-tab" role="tab" aria-controls="tab-settings" aria-selected="false" tabindex="-1"><span class="bottom-tab-icon" aria-hidden="true">⚙️</span><span class="bottom-tab-label">設定</span></button>
+    </div>
+  </nav>
 
   <div id="captureFlash" class="capture-flash hidden" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="capture-card" tabindex="-1">
