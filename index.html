@@ -260,6 +260,38 @@
     .rematch-buttons button{padding:10px 6px;font-size:14px;min-height:48px}
     .result-friend-add{background:#2e4c61;color:#f7fbff;border-color:#80b3cb;font-size:13px}
     .rematch-status{font-size:12px;color:#d3e5ef;margin:4px 0}
+
+    /* 捕獲時の視線誘導：選択 → 対象の強調 → 衝突 → 赤青の判明 */
+    .cell.capture-target{z-index:3;border:2px solid #fff0a6!important;outline:3px solid #ffb85b!important;outline-offset:-4px;box-shadow:0 0 0 2px #e9b76b80,0 0 18px #f0ca6b90}
+    .cell.capture-target::after{content:"取る";position:absolute;right:-3px;top:-7px;z-index:5;font-size:11px;line-height:1.3;padding:3px 5px;border-radius:6px;background:#ffda8d;color:#283449;font-weight:950;pointer-events:none;box-shadow:0 2px 6px #0a1726bb}
+    .cell.capture-target .ghost{animation:capture-aim-pulse 1.05s ease-in-out infinite}
+    .cell.capture-pending{outline:3px solid #ffe7a4;outline-offset:-4px;box-shadow:0 0 0 2px #f0cf88;z-index:3}
+    .cell.capture-pending::after{content:"確認中";position:absolute;right:-4px;top:-8px;z-index:5;background:#ffe5af;color:#334258;border-radius:5px;padding:3px 4px;font-size:10px;font-weight:950;pointer-events:none}
+    .cell.capture-landing{z-index:4;outline:3px solid #ffe9a6!important;outline-offset:-3px;box-shadow:0 0 0 3px #f3c96e9c,0 0 22px #ffd97db3;isolation:isolate}
+    .cell.capture-landing::before{content:"";position:absolute;z-index:0;inset:4px;border:3px solid #ffe7a8;border-radius:50%;pointer-events:none;animation:capture-ring .68s ease-out both}
+    .cell.capture-landing::after{content:"捕獲！";position:absolute;z-index:6;bottom:-9px;right:-4px;font-size:11px;padding:3px 5px;line-height:1.2;background:#ffe5a1;color:#27324c;border-radius:6px;font-weight:950;box-shadow:0 3px 8px #0c1c2bae;pointer-events:none}
+    .cell.capture-landing>.ghost:not(.captured-victim){position:relative;z-index:3}
+    .cell .ghost.captured-victim{position:absolute;z-index:2;inset:10%;width:80%;height:80%;pointer-events:none;animation:capture-victim-fade .6s ease-in .1s both}
+    .cell.capture-from{box-shadow:inset 0 0 0 3px #fbe0a8b0}
+    .capture-board-cue{margin:4px 1px 8px;padding:7px 9px;border-radius:9px;border:1px solid #e9c77f;background:#493b32;color:#fff2d8;text-align:center;font-size:12px;font-weight:800;line-height:1.5}
+    .capture-board-cue strong{color:#fff9c7}
+    .capture-position{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 9px}
+    .capture-position-text{max-width:175px;text-align:left;color:#e1edf8;font-size:12px;font-weight:800;line-height:1.6}
+    .capture-position-text strong{display:block;font-size:14px;color:#fff1c4}
+    .capture-minimap{display:grid;grid-template-columns:repeat(6,1fr);width:102px;height:102px;flex:none;gap:2px;padding:5px;border:1px solid #688097;border-radius:9px;background:#10243a}
+    .capture-map-cell{border-radius:2px;background:#344e68;border:1px solid #52708a;display:grid;place-items:center;font-size:11px;line-height:1}
+    .capture-map-cell:nth-child(12n + 1),.capture-map-cell:nth-child(12n + 3),.capture-map-cell:nth-child(12n + 5),.capture-map-cell:nth-child(12n + 8),.capture-map-cell:nth-child(12n + 10),.capture-map-cell:nth-child(12n + 12){background:#253f56}
+    .capture-map-cell.from{background:#ffe09a!important;color:#233853;font-weight:950;border:2px solid #fff0c5}
+    .capture-map-cell.target{background:#cad5e1!important;color:#28394d;border:2px solid #fff4ac;box-shadow:0 0 0 2px #edd08144}
+    .capture-flash.revealed.good .capture-map-cell.target{background:#7eccff!important;color:#143d5e}
+    .capture-flash.revealed.bad .capture-map-cell.target{background:#ff9fae!important;color:#662337}
+    .capture-card{max-height:calc(100dvh - 28px);overflow-y:auto}
+    .capture-art{min-height:160px}
+    .capture-ghost-art{width:min(164px,47vw)}
+    @keyframes capture-aim-pulse{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(.9);filter:brightness(1.25)}}
+    @keyframes capture-ring{0%{opacity:1;transform:scale(.5)}80%{opacity:1}100%{opacity:0;transform:scale(1.4)}}
+    @keyframes capture-victim-fade{0%,20%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.4)}}
+    @media(prefers-reduced-motion:reduce){.cell.capture-target .ghost,.cell.capture-landing::before,.cell .ghost.captured-victim{animation:none!important}.cell .ghost.captured-victim{display:none}}
   </style>
 </head>
 <body>
@@ -357,6 +389,7 @@
               <div id="opponentHand" class="prize-pieces" aria-label="相手が取った駒" aria-live="polite"><span class="prize-empty">まだありません</span></div>
             </div>
             <div class="arena-label">↑ 相手側の脱出口　★ は青の出口</div>
+            <div id="captureBoardCue" class="capture-board-cue hidden" role="status" aria-live="polite"></div>
             <div id="board" class="board" role="group" aria-label="6×6の対戦盤"></div>
             <div class="arena-label" style="margin:9px 0 1px">あなた側 ↓</div>
             <div class="prize-zone" aria-label="あなたの持ち駒">
@@ -401,6 +434,10 @@
   <div id="captureFlash" class="capture-flash hidden" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="capture-card" tabindex="-1">
       <div id="captureSituation" class="capture-situation">つかまえた！</div>
+      <div id="capturePosition" class="capture-position hidden" role="group" aria-label="捕獲した駒の位置">
+        <div id="captureMiniMap" class="capture-minimap" role="img" aria-label="捕獲位置のミニ盤面"></div>
+        <div id="capturePositionText" class="capture-position-text"></div>
+      </div>
       <p id="captureLabel" class="capture-label">このおばけの色は…？</p>
       <div class="capture-art">
         <svg id="captureGhostArt" class="capture-ghost-art" viewBox="0 0 220 230" role="img" aria-label="正体不明のおばけ" xmlns="http://www.w3.org/2000/svg">
