@@ -1613,7 +1613,7 @@
             value-=exposed*6;
           }
           // 捕獲した赤が増えているほど、残りの正体不明の駒を取らない。
-          if(m.target)value-=game.captured[0].bad>=2?48:13;
+          if(m.target)value-=game.captured[0].bad>=2?65:29;
         }else if(cpuStyle==='tricky'){
           if(kind==='bad'){
             value+=towardHuman*17;
