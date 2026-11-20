@@ -724,7 +724,7 @@
           </section>
           <section id="transformToolbar" class="transform-toolbar hidden" aria-label="正体変化能力">
             <strong id="transformStatus">🎭 正体変化：あなた残り1回／相手残り1回</strong>
-            <p id="transformHint">上下左右に隣接する、自分の赤い駒と青い駒の正体を交換。駒は移動せず、この手番を使います。</p>
+            <p id="transformHint">上下左右に隣接する、自分の赤い駒と青い駒の正体を交換。手番は使わず、そのまま移動できます。</p>
             <button id="transformAction" type="button">🎭 正体を交換する（1回）</button>
           </section>
           <div id="scoutReport" class="scout-report hidden" role="status" aria-live="polite">
@@ -956,8 +956,8 @@
         rules:'青4体を取る・赤4体を取らせる・青で脱出、のいずれかで勝利。'},
       scout:{label:'🔍 偵察モード',description:'1人につき1試合1回だけ、相手の駒の正体を確認。',
         rules:'自分の駒から周囲1マス（縦・横・斜め）にいる相手の駒が対象。偵察は1手消費し、色は偵察した本人にだけ表示します。'},
-      transform:{label:'🎭 正体変化モード',description:'自分の赤い駒と青い駒の正体を1回だけ交換できます。',
-        rules:'自分の手番に、上下左右に隣接する自分の赤と青を選んで正体だけ交換。駒の位置は動かず、1手消費。相手にはどの2体を交換したかだけ伝わり、色は秘密です。'}
+      transform:{label:'🎭 正体変化モード',description:'1試合1回、隣接する赤と青の正体を交換して、そのまま駒を動かせます。',
+        rules:'自分の手番に、上下左右に隣接する自分の赤と青の正体だけ交換。手番は消費せず、続けて通常の移動や脱出ができます。相手には交換した2体だけ伝わり、色は秘密です。'}
     };
     const FIRST_MODES=['dice','card','alternate','random'],SERIES_FORMATS=['single','best3'];
     const FIRST_MODE_LABELS={dice:'🎲 サイコロ',card:'🃏 トランプ',alternate:'🔄 交互',random:'🍀 おまかせ'};
@@ -1364,17 +1364,18 @@
         row.games++;if(win)row.wins++;
         stats.byFriend[friendId]=row;
       }
-      stats.recent.unshift({time:Date.now(),mode,win,type,moves:game.moves?.length||0,
+      stats.recent.unshift({time:Date.now(),mode,win,type,moves:turnCount(),
         friendId,style:solo?cpuStyle:null});
       stats.recent.length=Math.min(stats.recent.length,20);
       saveStats();renderStats();
     }
+    function turnCount(){return game?.moves?.filter(m=>m.type!=='transform').length||0;}
     function renderResultStats(){
       if(!game||game.phase!=='finished')return;
       const label=solo?'CPU戦':'オンライン対戦';
       const rate=stats.games?Math.round(stats.wins*100/stats.games):0;
       $('resultStats').textContent='🏆 '+label+' ／ 通算 '+stats.wins+'勝 '+stats.losses
-        +'敗（勝率 '+rate+'%） ／ 現在 '+stats.streak+'連勝 ／ '+(game.moves?.length||0)+'手で決着';
+        +'敗（勝率 '+rate+'%） ／ 現在 '+stats.streak+'連勝 ／ '+turnCount()+'手で決着';
     }
     function updateGhostSkin(next,rerender=true){
       ghostSkin=GHOST_SKINS.includes(next)?next:'classic';
@@ -2126,12 +2127,13 @@
         fromX:a.x,fromY:a.y,toX:b.x,toY:b.y};
       game.transformHistory.push({owner:by,a:a.id,b:b.id,seq:m.seq});
       game.moves.push(evt);
-      game.lastTransform={round:game.round,seq:m.seq,a:a.id,b:b.id};
-      game.lastMove=null;game.seq=m.seq;game.turn=1-by;
+      game.lastTransform={round:game.round,seq:m.seq,owner:by,a:a.id,b:b.id};
+      // 通信のイベント番号だけを進める。手番は変えず、続けて通常の1手を指せる。
+      // CPUも同じ呼び出し内で次の移動を選ぶので、ここではCPUタイマーを起動しない。
+      game.lastMove=null;game.seq=m.seq;
       if(by===role){selection=null;transformMode=false;}
-      history('P'+(by+1)+'が隣接する2体の正体を入れ替えました（色は秘密）');
+      history('P'+(by+1)+'が隣接する2体の正体を入れ替えました（手番消費なし・色は秘密）');
       render();
-      if(solo&&game.phase==='playing'&&game.turn===1)queueCpu(600);
       return true;
     }
     function attemptTransform(bId){
@@ -2160,11 +2162,14 @@
         ||!connected||mine||!eligible.length||!!movePending||!!scoutPending||captureInProgress();
       $('transformAction').textContent=mine?'🎭 正体変化は使用済み':
         transformMode?'✖ 正体変化をやめる':'🎭 正体を交換する（1回）';
-      $('transformHint').textContent=mine?'この試合ではもう使えません。次の試合で再び使用できます。':
+      $('transformHint').textContent=mine?
+          (game.phase==='playing'&&game.turn===role&&game.lastTransform?.owner===role?
+            '交換成功！ 手番はそのままです。続けて動かす駒を選んでください。':
+            'この試合では使用済みです。次の試合で再び使用できます。'):
         !eligible.length?'現在は上下左右に隣接する赤・青のペアがありません。駒を動かして近づけてください。':
         transformMode?selectedMine()?'交換できる隣接する自分の駒が金色に光ります。タップして交換してください。':
           'まず自分の赤または青い駒をタップ。次に金色に光る異なる色の駒を選択します。':
-        '上下左右に隣接する自分の赤と青を交換。位置は動かず、1手消費。相手には駒の組だけ伝わります。';
+        '上下左右に隣接する自分の赤と青を交換。位置は動かさず、手番も消費しません。そのまま移動できます。';
     }
     function validScout(m,by){
       if(!game||game.match?.mode!=='scout'||game.phase!=='playing'
@@ -2413,9 +2418,16 @@
         if(opts.length){
           // CPUの正体変化は自分の駒色だけで判断し、相手の色を読まない。
           const pair=opts[Math.floor(Math.random()*opts.length)];
-          if(commitTransform({t:'transform',round:game.round,seq:game.seq+1,a:pair.a.id,b:pair.b.id},1))
-            return;
+          commitTransform({t:'transform',round:game.round,seq:game.seq+1,a:pair.a.id,b:pair.b.id},1);
+          // 無料の正体交換後、CPUはこの手番で続けて駒を動かす。
         }
+      }
+      // 交換によって出口上の赤が青に変わった場合は、この手番で脱出可能。
+      const afterTransformEscape=cpu.find(p=>cpuSecrets[p.id]?.kind==='good'&&isExit(p));
+      if(afterTransformEscape){
+        game.seq++;game.moves.push({id:afterTransformEscape.id,owner:1,type:'escape',seq:game.seq});
+        endGame(1,'青い駒を出口から脱出させました','escape');
+        return;
       }
       const humans=game.pieces.filter(p=>p.owner===0);
       if(game.match?.mode==='scout'&&!game.scoutUsed[1]&&game.seq>=2){
@@ -2590,16 +2602,18 @@
       $('reviewPanel').classList.toggle('hidden',!finished);
       if(!finished)return;
       $('reviewSummary').textContent=(game.winner===role?'あなたの勝ち':'相手の勝ち')+'：'+game.reason
-        +' ／ '+game.moves.length+'手（相手の未捕獲駒の色は検証後に盤面で確認できます）';
+        +' ／ '+turnCount()+'手（正体変化は手番に数えません。相手の色は検証後に盤面で確認できます）';
       const ol=$('reviewList');ol.replaceChildren();
       const localSquare=(x,y)=>{
         const cx=role===0?x:5-x,cy=role===0?y:5-y;
         return '('+(cx+1)+'列,'+(cy+1)+'行)';
       };
-      for(const [index,m] of game.moves.entries()){
+      let numberedTurns=0;
+      for(const m of game.moves){
+        if(m.type!=='transform')numberedTurns++;
         const li=document.createElement('li');
         const who=m.owner===role?'あなた':solo?'CPU':'相手';
-        li.textContent=(index+1)+'手目 '+(m.type==='escape'
+        li.textContent=(m.type==='transform'?'追加行動（手番消費なし） ':numberedTurns+'手目 ')+(m.type==='escape'
           ?who+'が青い駒を脱出'
           :m.type==='scout'?
             who+'が '+localSquare(m.fromX,m.fromY)+' から '+localSquare(m.toX,m.toY)+
@@ -2695,6 +2709,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           movePending?'相手の駒の色を確認しています…':
           scoutMode?'🔍 偵察モード。自分の駒と相手の駒を選択してください。':
           transformMode?'🎭 正体変化モード。隣接する赤・青の2体を選択してください。':
+          myturn&&game.lastTransform?.owner===role?'🎭 正体を交換しました！ 続けて駒を動かすか脱出してください。':
           myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';
       }
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
