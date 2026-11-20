@@ -2218,7 +2218,8 @@
     }
     function renderScoutUI(){
       const mode=game.match?.mode||'classic',details=GAME_MODES[mode]||GAME_MODES.classic;
-      $('ruleModeBadge').textContent=details.label+' ／ '+(mode==='scout'?'偵察1回':'特殊能力なし');
+      $('ruleModeBadge').textContent=details.label+' ／ '+
+        (mode==='scout'?'偵察1回':mode==='transform'?'正体変化1回':'特殊能力なし');
       const enabled=mode==='scout';
       $('scoutToolbar').classList.toggle('hidden',!enabled);
       if(enabled){
@@ -2603,6 +2604,9 @@
           :m.type==='scout'?
             who+'が '+localSquare(m.fromX,m.fromY)+' から '+localSquare(m.toX,m.toY)+
               ' の駒を偵察（色は本人にのみ公開）'
+          :m.type==='transform'?
+            who+'が '+localSquare(m.fromX,m.fromY)+' と '+localSquare(m.toX,m.toY)+
+              ' のオバケの正体を交換（色は秘密）'
           :who+'：'+localSquare(m.fromX,m.fromY)+' → '+localSquare(m.toX,m.toY)
            +(m.captured?' ／ '+(m.captured==='good'?'青':'赤')+'を捕獲':''));
         ol.append(li);
@@ -2676,18 +2680,21 @@
       renderReview();
 $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'CPU・'+CPU_STYLE_LABELS[cpuStyle]:'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='initiative'?'🎲 先手を決めよう！':game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
-      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('ready').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!scoutPending&&!scoutMode&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
+      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('ready').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!scoutPending&&!scoutMode&&!transformMode&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
       if(game.phase==='initiative'){
         $('gameHint').textContent='先手決めゲームで勝った側が、この試合の1手目を動かせます。';
         $('moveMessage').textContent='先手を決めてから初期配置を始めます。';
       }
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
       if(game.phase==='playing'){
-        $('gameHint').textContent=scoutMode?'🔍 偵察：まず自分の駒を選び、斜めを含む周囲1マスの相手をタップ！':
+        $('gameHint').textContent=transformMode?
+          '🎭 正体変化：自分の駒を選び、上下左右に隣接する違う色の自分の駒を選択！':
+          scoutMode?'🔍 偵察：まず自分の駒を選び、斜めを含む周囲1マスの相手をタップ！':
           '自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';
         $('moveMessage').textContent=scoutPending?'偵察した駒の正体を検証中です…':
           movePending?'相手の駒の色を確認しています…':
           scoutMode?'🔍 偵察モード。自分の駒と相手の駒を選択してください。':
+          transformMode?'🎭 正体変化モード。隣接する赤・青の2体を選択してください。':
           myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';
       }
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
@@ -2717,8 +2724,15 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
       }
       if(selection&&p?.id===selection)cell.classList.add('selected');
+      if(game.lastTransform&&game.lastTransform.round===game.round&&p
+         &&(p.id===game.lastTransform.a||p.id===game.lastTransform.b))
+         cell.classList.add('transform-recent');
       if(sel&&game.phase==='playing'&&myturn&&!movePending&&!scoutPending){
-        if(scoutMode){
+        if(transformMode){
+          if(p&&p.owner===role&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1
+             &&game.mySecrets[sel.id]?.kind!==game.mySecrets[p.id]?.kind)
+             cell.classList.add('transform-target');
+        }else if(scoutMode){
           if(p&&p.owner!==role&&Math.max(Math.abs(sel.x-x),Math.abs(sel.y-y))===1)
             cell.classList.add('scout-target');
         }else if(Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role)){
