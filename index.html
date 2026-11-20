@@ -272,6 +272,7 @@
     .cell.capture-landing::after{content:"捕獲！";position:absolute;z-index:6;bottom:-9px;right:-4px;font-size:11px;padding:3px 5px;line-height:1.2;background:#ffe5a1;color:#27324c;border-radius:6px;font-weight:950;box-shadow:0 3px 8px #0c1c2bae;pointer-events:none}
     .cell.capture-landing>.ghost:not(.captured-victim){position:relative;z-index:3}
     .cell .ghost.captured-victim{position:absolute;z-index:2;inset:10%;width:80%;height:80%;pointer-events:none;animation:capture-victim-fade .6s ease-in .1s both}
+    body.effects-off .cell .ghost.captured-victim{display:none!important}
     .cell.capture-from{box-shadow:inset 0 0 0 3px #fbe0a8b0}
     .capture-board-cue{margin:4px 1px 8px;padding:7px 9px;border-radius:9px;border:1px solid #e9c77f;background:#493b32;color:#fff2d8;text-align:center;font-size:12px;font-weight:800;line-height:1.5}
     .capture-board-cue strong{color:#fff9c7}
@@ -908,6 +909,8 @@
         captureIntro=null;
         $('captureBoardCue').classList.add('hidden');
         showCapture(kind,attackerOwner,numberCaptured,info);
+        // ミニマップで場所を伝えた後、盤面上の一時的な残像は片づける。
+        render();
       },effectsMode==='off'?520:820);
     }
     function renderCaptureMiniMap(info){
