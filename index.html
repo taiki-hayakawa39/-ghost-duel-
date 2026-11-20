@@ -479,6 +479,17 @@
     .scout-report strong{font-size:13px;line-height:1.6;flex:1}
     .scout-report button{flex:none;min-height:39px;padding:7px 12px;border-radius:8px;background:#5c4684;color:#fff;border:1px solid #a58ad4}
     @media(prefers-reduced-motion:reduce){.cell.scout-target .ghost{animation:none!important}}
+
+    /* 正体変化：マス位置はそのままで、隣接する赤と青の秘密だけ交換 */
+    .transform-toolbar{margin:9px 0;padding:10px;border:1px solid #f1b781;border-radius:12px;background:#493147}
+    .transform-toolbar strong{display:block;font-size:13px;color:#ffe7bd}
+    .transform-toolbar p{margin:5px 0 8px;font-size:12px;line-height:1.6;color:#f2dce9}
+    .transform-toolbar button{width:100%;min-height:44px;border:1px solid #f3d2af;border-radius:9px;background:#966049;color:#fff;font-size:14px;font-weight:850}
+    .transform-toolbar button:disabled{opacity:.55}
+    .cell.transform-target{z-index:3;outline:3px solid #ffcf87!important;outline-offset:-3px;background:#68506b!important;box-shadow:0 0 0 3px #eec39365,0 0 16px #ffb78080}
+    .cell.transform-target:after{content:"⇄";z-index:5;position:absolute;right:-5px;top:-9px;padding:2px 5px;background:#8b4b56;border:1px solid #ffe4b9;border-radius:6px;color:white;font-size:15px;font-weight:900;pointer-events:none}
+    .cell.transform-recent{box-shadow:inset 0 0 0 3px #f2be93}
+    .mode-action-note{font-size:11px;color:#b8cde1}
   </style>
 </head>
 <body>
@@ -554,6 +565,7 @@
           <select id="gameMode">
             <option value="classic">👻 クラシック｜通常ルール</option>
             <option value="scout">🔍 偵察モード｜1試合1回</option>
+            <option value="transform">🎭 正体変化モード｜1試合1回</option>
           </select>
           <div class="rule-mode-card" id="gameModeCard" role="status" aria-live="polite">
             <strong id="gameModeTitle">👻 クラシック</strong>
@@ -709,6 +721,11 @@
             <strong id="scoutStatus">🔍 偵察：あなた1回 / 相手1回</strong>
             <p id="scoutHint">自分の駒から周囲1マス（斜めを含む）の相手の駒を調べられます。</p>
             <button id="scoutAction" type="button">🔍 偵察を使う（1回）</button>
+          </section>
+          <section id="transformToolbar" class="transform-toolbar hidden" aria-label="正体変化能力">
+            <strong id="transformStatus">🎭 正体変化：あなた残り1回／相手残り1回</strong>
+            <p id="transformHint">上下左右に隣接する、自分の赤い駒と青い駒の正体を交換。駒は移動せず、この手番を使います。</p>
+            <button id="transformAction" type="button">🎭 正体を交換する（1回）</button>
           </section>
           <div id="scoutReport" class="scout-report hidden" role="status" aria-live="polite">
             <strong id="scoutReportText"></strong>
@@ -938,7 +955,9 @@
       classic:{label:'👻 クラシック',description:'基本ルールの心理戦。特殊能力なし。',
         rules:'青4体を取る・赤4体を取らせる・青で脱出、のいずれかで勝利。'},
       scout:{label:'🔍 偵察モード',description:'1人につき1試合1回だけ、相手の駒の正体を確認。',
-        rules:'自分の駒から周囲1マス（縦・横・斜め）にいる相手の駒が対象。偵察は1手消費し、色は偵察した本人にだけ表示します。'}
+        rules:'自分の駒から周囲1マス（縦・横・斜め）にいる相手の駒が対象。偵察は1手消費し、色は偵察した本人にだけ表示します。'},
+      transform:{label:'🎭 正体変化モード',description:'自分の赤い駒と青い駒の正体を1回だけ交換できます。',
+        rules:'自分の手番に、上下左右に隣接する自分の赤と青を選んで正体だけ交換。駒の位置は動かず、1手消費。相手にはどの2体を交換したかだけ伝わり、色は秘密です。'}
     };
     const FIRST_MODES=['dice','card','alternate','random'],SERIES_FORMATS=['single','best3'];
     const FIRST_MODE_LABELS={dice:'🎲 サイコロ',card:'🃏 トランプ',alternate:'🔄 交互',random:'🍀 おまかせ'};
