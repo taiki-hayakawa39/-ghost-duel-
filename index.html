@@ -325,6 +325,34 @@
     .cpu-personality select{width:min(58%,238px);min-width:145px;border:1px solid #7690a8;border-radius:9px;background:#15283b;color:#f0f7ff;min-height:40px;padding:7px;font-size:16px}
     .cpu-style-note{font-size:12px;line-height:1.65;color:#bcd9ed;margin:2px 0 12px}
     @media(max-width:360px){.stats-grid{gap:4px}.stats-number{padding:7px 2px}.stats-number strong{font-size:19px}.skin-picker .ghost.preview{width:63px;height:63px}}
+
+    /* 先手決めミニゲームと3本勝負。盤面の視認性と親指操作を優先 */
+    .match-choices{margin:14px 0;padding:11px 12px;border:1px solid #668ba9;border-radius:12px;background:#152e44}
+    .match-choices h3{font-size:15px;margin:0 0 8px;color:#ffe5a4}
+    .match-choice-row{display:flex;align-items:center;justify-content:space-between;gap:9px;margin:9px 0}
+    .match-choice-row label{font-size:13px;font-weight:800;flex:1;min-width:0}
+    .match-choice-row select{font-size:16px;min-height:44px;flex:1.25;min-width:0;max-width:228px;padding:8px;border:1px solid #7894ad;border-radius:9px;background:#192d44;color:#fff}
+    .match-choice-note{color:#b7cfe0;font-size:12px;line-height:1.65;margin:7px 0 1px}
+    .series-score{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;border:1px solid #d4b777;border-radius:12px;background:#3a3440;color:#fff8e6;padding:8px 11px;margin:9px 0;font-size:13px;font-weight:800}
+    .series-score strong{font-size:15px;color:#ffe8a7}
+    .series-score small{font-size:11px;color:#d9cbba}
+    .initiative-panel{margin:10px 0 13px;padding:16px 12px;border:2px solid #eac982;border-radius:17px;background:linear-gradient(155deg,#344763,#1a2b42);text-align:center}
+    .initiative-panel h3{margin:4px 0 8px;font-size:19px;color:#fff0bd}
+    .initiative-description{font-size:13px;line-height:1.8;color:#dce9f7}
+    .initiative-faces{display:grid;grid-template-columns:1fr 24px 1fr;gap:7px;align-items:center;margin:13px 0}
+    .initiative-face{background:#1d3048;border:1px solid #7999b7;border-radius:13px;padding:9px 5px;min-width:0}
+    .initiative-face strong{display:block;font-size:11px;color:#d8eaf8}
+    .initiative-face span{display:block;font-size:clamp(25px,7vw,41px);font-weight:900;min-height:52px;line-height:1.45;color:#fff3ca}
+    .initiative-face small{display:block;font-size:11px;color:#b9d4e6}
+    .initiative-versus{font-size:12px;font-weight:900;color:#ffda91}
+    .initiative-panel button{width:100%;min-height:52px;font-size:17px;margin:5px 0}
+    .initiative-panel button:disabled{opacity:.65}
+    .initiative-message{font-size:13px;font-weight:800;color:#ffe3a0;line-height:1.7;min-height:26px;margin:8px 0}
+    .starter-banner{border-radius:9px;background:#1a4b45;color:#dcfff1;padding:8px 10px;margin:8px 0;font-size:13px;font-weight:800;line-height:1.6}
+    .result-series{background:#243b52;border:1px solid #a7bdd6;border-radius:11px;padding:9px 10px;margin:5px 0 12px;color:#fff1c9;font-weight:850;font-size:14px;line-height:1.5}
+    body.game-active .initiative-panel{margin-top:7px}
+    @media(max-width:360px){.match-choice-row{flex-wrap:wrap}.match-choice-row select{max-width:none;width:100%;flex-basis:100%}}
+    @media(prefers-reduced-motion:reduce){.initiative-faces *{animation:none!important}}
   </style>
 </head>
 <body>
@@ -394,6 +422,27 @@
           <option value="tricky">🎭 だまし型</option>
         </select></label>
         <p id="cpuStyleNote" class="cpu-style-note">攻撃と脱出のバランスを取る、標準的な相手です。</p>
+        <div class="match-choices" id="matchChoices">
+          <h3>🎮 対戦ルールを選ぶ</h3>
+          <div class="match-choice-row">
+            <label for="seriesFormat">勝負モード</label>
+            <select id="seriesFormat">
+              <option value="single">1試合ずつ</option>
+              <option value="best3">🏆 3本勝負（2勝先取）</option>
+            </select>
+          </div>
+          <div class="match-choice-row">
+            <label for="firstMode">先手の決め方</label>
+            <select id="firstMode">
+              <option value="dice">🎲 サイコロの大きい方</option>
+              <option value="card">🃏 トランプの大きい方</option>
+              <option value="alternate">🔄 交互に先手</option>
+              <option value="random">🍀 自動くじ引き</option>
+            </select>
+          </div>
+          <p id="firstModeDescription" class="match-choice-note">サイコロをそれぞれ振り、大きい目の人が先手。同じ目なら振り直し。</p>
+          <p class="match-choice-note">2人対戦では部屋を作る側が設定を決めます。3本勝負中は勝数を引き継ぎ、決着後に新しい対戦ができます。</p>
+        </div>
         <button type="button" id="soloStart" class="primary full">🤖 CPUと対戦する（1人用）</button>
         <p class="muted">1台のスマホでCPUと対戦。相手の駒の色は隠され、通信接続を待たずに遊べます。</p>
         <div class="separator">2人でオンライン対戦</div>
@@ -455,6 +504,19 @@
           </details>
         </div>
         <div class="panel">
+          <div id="seriesScore" class="series-score" aria-live="polite"><span id="seriesScoreLabel">🏆 1試合</span><strong id="seriesScoreNumbers">0 – 0</strong><small id="seriesScoreHint">先手を決めています</small></div>
+          <section id="initiativePanel" class="initiative-panel hidden" aria-labelledby="initiativeTitle">
+            <h3 id="initiativeTitle">🎲 先手決めゲーム</h3>
+            <p id="initiativeDescription" class="initiative-description">大きい数字を出した人が先手になります。</p>
+            <div class="initiative-faces" aria-live="polite">
+              <div class="initiative-face"><strong>あなた</strong><span id="initiativeMine">？</span><small id="initiativeMineNote">まだです</small></div>
+              <span class="initiative-versus">VS</span>
+              <div class="initiative-face"><strong id="initiativeOpponentName">相手</strong><span id="initiativeOpponent">？</span><small id="initiativeOpponentNote">まだです</small></div>
+            </div>
+            <button id="initiativeDraw" type="button" class="primary">🎲 サイコロを振る！</button>
+            <p id="initiativeMessage" class="initiative-message" role="status" aria-live="polite">あなたの番です</p>
+          </section>
+          <div id="starterBanner" class="starter-banner hidden" role="status" aria-live="polite"></div>
           <div class="topline"><div><span class="kicker" id="roundLabel">ROUND 1</span><div id="turnText" class="turn" aria-live="polite">初期配置中</div></div><span id="playerBadge" class="badge green">あなたは P1</span></div>
           <p id="gameHint" class="note">自分の駒を2つ選ぶと赤青を入れ替えられます。</p>
           <div id="lastMoveBar" class="last-move-bar hidden"><span id="lastMoveText">まだ動きはありません</span><button id="replayLast" type="button" class="secondary">👁 直前の手</button></div>
@@ -653,6 +715,7 @@
       <h2 id="resultHeading" class="result-heading">勝利！</h2>
       <p id="resultTagline" class="result-tagline">オバケの勝負が決着！</p>
       <p id="resultReason" class="result-reason">対戦が終了しました</p>
+      <div id="resultSeries" class="result-series hidden" aria-live="polite"></div>
       <div id="resultStats" class="result-stats" aria-live="polite">成績を集計しています</div>
       <div class="rematch-prompt" id="rematchPrompt" aria-live="polite">👻 もう一戦しますか？</div>
       <div class="result-actions">
