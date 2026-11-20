@@ -388,6 +388,7 @@
       background:linear-gradient(120deg,#543821,#d2a06a 56%,#79512d);box-shadow:0 4px 6px #08252ba6}
     .dice-toss{position:absolute;z-index:7;top:8px;right:3px;font-size:34px;opacity:0;pointer-events:none;text-shadow:0 3px 3px #092839}
     .dice-sound{position:absolute;z-index:8;top:10px;left:0;right:0;font-size:12px;font-weight:900;color:#ffe2a7;opacity:0}
+    .dice-stage.rolling .dice-sound:after{content:"カラカラ…";background:#225347b3;border-radius:20px;padding:2px 9px}
     .dice-stage.rolling .dice-toss{animation:chinchiro-toss .72s ease-out both}
     .dice-stage.rolling .dice-cup{animation:chinchiro-shake .28s ease-in-out .55s infinite alternate}
     .dice-stage.rolling .dice-sound{animation:chinchiro-sound 1s ease-in-out .4s infinite}
@@ -828,6 +829,7 @@
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
     let captureIntro=null,captureIntroTimer=null,firstRevealTimer=null,firstRevealRound=null;
+    let diceRevealTimer=null,diceRevealStage=null,diceTieDisplay=null;
     const REACTION_EMOJIS=['😆','😮','👏','👻'],PREF_KEY='ghostDuelPrefsV1',SAVE_KEY='ghostDuelSaveV1';
     const FRIEND_KEY='ghostDuelFriendListV1',IDENTITY_KEY='ghostDuelFriendIdV1',NAME_KEY='ghostDuelFriendNameV1';
     const STATS_KEY='ghostDuelStatsV1';
@@ -854,7 +856,7 @@
     const FIRST_MODES=['dice','card','alternate','random'],SERIES_FORMATS=['single','best3'];
     const FIRST_MODE_LABELS={dice:'🎲 サイコロ',card:'🃏 トランプ',alternate:'🔄 交互',random:'🍀 おまかせ'};
     const FIRST_MODE_HELP={
-      dice:'自分と相手が1回ずつサイコロを振ります。大きい目が先手。同じ目なら振り直し。',
+      dice:'🎲 サイコロをカップに投げ込み、シャカシャカ振ってから目を公開！ 大きい目が先手。同じ目なら振り直し。',
       card:'自分と相手がトランプを1枚ずつ引きます。数字は2〜10・J・Q・K・A（Aが最大）。同じ数字なら引き直し。',
       alternate:'最初はP1が先手。2試合目以降は先手・後手を交代します。',
       random:'くじ引きで先手を自動決定。双方に結果が表示されます。'
@@ -922,16 +924,43 @@
       return Number.isInteger(v)&&v>=0&&(method==='dice'?v>=1&&v<=6:method==='card'?v<52:false);
     }
     function showFirstReveal(){
-      return !!game&&game.phase==='setup'&&firstRevealRound===game.round&&firstRevealTimer!==null;
+      return !!game&&firstRevealRound===game.round&&firstRevealTimer!==null&&
+        (game.phase==='setup'||(game.phase==='initiative'&&!!diceTieDisplay));
     }
     function clearFirstReveal(){
       if(firstRevealTimer!==null){clearTimeout(firstRevealTimer);firstRevealTimer=null;}
-      firstRevealRound=null;
+      if(diceRevealTimer!==null){clearTimeout(diceRevealTimer);diceRevealTimer=null;}
+      firstRevealRound=null;diceRevealStage=null;diceTieDisplay=null;
     }
     function finishFirstReveal(){
       if(firstRevealTimer===null)return;
       clearFirstReveal();
       render();
+    }
+    function startDiceShowcase(tiedValues=null){
+      // サイコロの目はこれまで通り暗号学的乱数で確定させ、見た目だけを演出。
+      clearFirstReveal();
+      diceTieDisplay=tiedValues?{values:tiedValues.slice()}:null;
+      diceRevealStage='rolling';
+      firstRevealRound=game.round;
+      const short=effectsMode==='off'||!!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      diceRevealTimer=setTimeout(()=>{
+        diceRevealTimer=null;
+        if(!game||game.round!==firstRevealRound||!showFirstReveal())return;
+        diceRevealStage='shown';
+        render();
+      },short?350:1900);
+      firstRevealTimer=setTimeout(finishFirstReveal,short?1500:4300);
+    }
+    function updateDiceStage(id,dieId,val,revealing,stage){
+      const scene=$(id),die=$(dieId);
+      const state=revealing?(stage==='shown'?'revealed':'rolling'):val===null?'waiting':'rolling';
+      scene.className='dice-stage '+state;
+      const publicValue=revealing&&stage==='shown'&&validDraw('dice',val)?val:null;
+      die.className='dice-die face-'+(publicValue||1);
+      scene.setAttribute('aria-label',publicValue!==null?
+        'サイコロの目は'+publicValue:state==='waiting'?
+        'まだサイコロを振っていません':'カップの中でサイコロを振っています');
     }
     function resolveFirstDraw(){
       if(!game||game.phase!=='initiative')return;
@@ -939,9 +968,11 @@
       if(values.some(x=>x===null))return;
       const a=drawStrength(game.match.method,values[0]),b=drawStrength(game.match.method,values[1]);
       if(a===b){
-        init.note='🎲 同じ大きさ（'+a+'）！ 引き分けです。もう一度！';
+        const bothValues=values.slice();
+        init.note=(game.match.method==='dice'?'🎲 同じ目':'🃏 同じ数字')+'（'+a+'）！ 引き分けです。もう一度！';
         init.attempt++;init.values=[null,null];
         if(solo)init.values[1]=randomDrawValue();
+        if(game.match.method==='dice')startDiceShowcase(bothValues);
         render();
         return;
       }
@@ -952,15 +983,22 @@
       game.startDescription=FIRST_MODE_LABELS[game.match.method]+'：P1 '+face0
         +' ／ P2 '+face1+' → P'+(game.starter+1)+'が先手！';
       history(game.startDescription);
-      firstRevealRound=game.round;
-      firstRevealTimer=setTimeout(finishFirstReveal,effectsMode==='off'?800:1900);
+      if(game.match.method==='dice')startDiceShowcase();
+      else{
+        firstRevealRound=game.round;
+        firstRevealTimer=setTimeout(finishFirstReveal,effectsMode==='off'?800:1900);
+      }
       render();
     }
     function randomDrawValue(){
       return game.match.method==='dice'?secureRandomBelow(6)+1:secureRandomBelow(52);
     }
     function submitFirstDraw(){
-      if(showFirstReveal()){finishFirstReveal();return;}
+      if(showFirstReveal()){
+        // 壺が持ち上がり、サイコロの出目が見えるまではスキップ不可。
+        if(game?.match?.method==='dice'&&diceRevealStage!=='shown')return;
+        finishFirstReveal();return;
+      }
       if(!game||game.phase!=='initiative'||!connected||game.initiative.values[role]!==null)return;
       const init=game.initiative,attempt=init.attempt,value=randomDrawValue();
       if(!solo&&!send({t:'initiative-draw',round:game.round,attempt,value}))return;
@@ -992,26 +1030,45 @@
       $('initiativeFaces').classList.toggle('revealed',revealing);
       $('starterBanner').textContent=(game.startDescription||'')+
         (game.starter===role?'　✅ あなたが先手！':'　▶ 相手が先手！');
+      $('initiativeFaces').classList.toggle('dice-mode',first&&m.method==='dice');
       if(first){
-        const init=game.initiative,method=m.method;
-        const isDice=method==='dice';
-        $('initiativeTitle').textContent=revealing?'🏆 先手が決定！':isDice?'🎲 サイコロ勝負！':'🃏 トランプ対決！';
-        $('initiativeDescription').textContent=revealing?'結果が出ました！ 先手になったプレイヤーが最初に動かします。':FIRST_MODE_HELP[method];
+        const init=game.initiative,method=m.method,isDice=method==='dice';
+        const tied=!!(revealing&&diceTieDisplay),stage=diceRevealStage;
+        const values=tied?diceTieDisplay.values:init.values;
+        const mine=values[role],other=values[1-role];
+        const shown=!isDice||stage==='shown';
+        $('initiativeTitle').textContent=revealing?
+          (tied?'🎲 同じ目！ 再勝負！':isDice&&stage!=='shown'?'🎲 カップの中でコロコロ…':'🏆 先手が決定！'):
+          isDice?'🎲 チンチロ風・サイコロ勝負！':'🃏 トランプ対決！';
+        $('initiativeDescription').textContent=revealing&&isDice&&!shown?
+          'カップの中でサイコロが転がっています。振り終わると壺が持ち上がります！':
+          revealing?(tied?'どちらも同じ目でした。もう一度振って先手を決めましょう。':
+            '結果が出ました！ 先手になったプレイヤーが最初に動かします。'):
+          FIRST_MODE_HELP[method];
         $('initiativeOpponentName').textContent=solo?'CPU':'相手';
-        const mine=init.values[role],other=init.values[1-role];
-        $('initiativeMine').textContent=revealing?drawFace(method,mine):mine===null?'？':'✓';
-        $('initiativeOpponent').textContent=revealing?drawFace(method,other):other===null?'？':'✓';
-        $('initiativeMineNote').textContent=mine===null?'まだです':'引きました！';
-        $('initiativeOpponentNote').textContent=other===null?'まだです':'引きました！';
-        $('initiativeDraw').disabled=!connected||(!revealing&&mine!==null);
-        $('initiativeDraw').textContent=revealing?'▶ 初期配置に進む':
+        if(isDice){
+          updateDiceStage('diceMineStage','diceMineDie',mine,revealing,stage);
+          updateDiceStage('diceOpponentStage','diceOpponentDie',other,revealing,stage);
+        }
+        $('initiativeMine').textContent=revealing&&shown?drawFace(method,mine):mine===null?'？':'✓';
+        $('initiativeOpponent').textContent=revealing&&shown?drawFace(method,other):other===null?'？':'✓';
+        $('initiativeMineNote').textContent=revealing&&isDice?
+          (shown?'🎲 '+mine+'の目！':'カラカラ…'):
+          mine===null?'まだです':'振りました！';
+        $('initiativeOpponentNote').textContent=revealing&&isDice?
+          (shown?'🎲 '+other+'の目！':'カラカラ…'):
+          other===null?'まだです':'振りました！';
+        $('initiativeDraw').disabled=!connected||(revealing&&isDice&&!shown)||(!revealing&&mine!==null);
+        $('initiativeDraw').textContent=revealing?(tied?'↻ もう一度振る':'▶ 初期配置に進む'):
           mine!==null?'✅ 参加済み・結果待ち':
-          isDice?'🎲 サイコロを振る！':'🃏 カードを引く！';
+          isDice?'🎲 カップにサイコロを投げる！':'🃏 カードを引く！';
         $('initiativeMessage').textContent=revealing?
-          (game.starter===role?'🎉 あなたが先手！':'▶ 相手が先手です！'):
+          (tied?(shown?'🎲 同じ目！ 引き分けです。もう一度勝負！':'カップをシャカシャカ…！'):
+            isDice&&!shown?'カラカラ…コロコロ…！ 出目はまだ秘密です。':
+            game.starter===role?'🎉 あなたが先手！':'▶ 相手が先手です！'):
           init.note||(
-          mine!==null?'相手が引くのを待っています…':
-          other!==null?'相手は準備できました。あなたも引こう！':'ボタンを押して勝負！');
+          mine!==null?'相手がサイコロを振るのを待っています…':
+          other!==null?'相手は準備できました。あなたも振ろう！':'カップにサイコロを投げ入れよう！');
       }
     }
     function updateSeriesAfterResult(winner){
