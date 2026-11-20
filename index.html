@@ -434,6 +434,21 @@
     @media(max-width:360px){.initiative-faces.dice-mode{gap:3px}.dice-stage{height:125px}
       .dice-cup{width:67px;height:67px}.dice-die{width:44px;height:44px;padding:8px}
       .dice-stage .dice-die i{width:6px;height:6px}}
+
+    /* 駒の向き：自分側は正面、相手側は相手から見て正面＝こちらからは後ろ姿。
+       表示の向きは所有者だけで決まり、秘密の赤青には依存しない。 */
+    .ghost.facing-away{--back-fill:#cedce8;--back-shadow:#91acc1}
+    .ghost.facing-away.good{--back-fill:#87cff6;--back-shadow:#4f9acb}
+    .ghost.facing-away.bad{--back-fill:#ffaab7;--back-shadow:#d8738a}
+    .ghost-back-art{display:block;position:relative;z-index:1;width:87%;height:87%;overflow:visible;flex:0 0 auto;
+      filter:drop-shadow(0 2px 1px #19374b33)}
+    .ghost-back-art .back-body{fill:var(--back-fill);stroke:var(--back-shadow);stroke-width:3.7;stroke-linejoin:round}
+    .ghost-back-art .back-gloss{fill:none;stroke:#fff;stroke-opacity:.72;stroke-width:5;stroke-linecap:round}
+    .ghost-back-art .back-fold{fill:none;stroke:var(--back-shadow);stroke-opacity:.85;stroke-width:2.5;stroke-linecap:round}
+    .ghost.facing-away.skin-glasses::before{
+      content:"";top:44%;left:50%;transform:translateX(-50%);
+      width:54%;height:9%;border:2px solid #263950;background:#43596b;border-radius:40%;
+    }
   </style>
 </head>
 <body>
@@ -2164,6 +2179,30 @@
         mark.setAttribute('aria-hidden','true');token.append(mark);hand.append(token);
       }
     }
+
+    // 後ろ姿の専用イラスト。絵文字を180度回転させると逆さのオバケに
+    // なってしまうため、顔を描かない背面用シルエットを使う。
+    function ghostBackArt(){
+      const NS='http://www.w3.org/2000/svg';
+      const svg=document.createElementNS(NS,'svg');
+      svg.setAttribute('viewBox','0 0 100 106');
+      svg.setAttribute('class','ghost-back-art');
+      svg.setAttribute('aria-hidden','true');
+      const shapes=[
+        ['path','back-body','M 12 94 L 12 45 C 12 22 27 8 50 8 C 73 8 88 22 88 45 L 88 94 L 75 86 L 63 98 L 51 88 L 38 99 L 25 87 Z'],
+        ['path','back-gloss','M 29 24 C 23 29 20 35 20 46'],
+        ['path','back-fold','M 50 34 Q 56 57 51 75'],
+        ['path','back-fold','M 35 78 Q 40 82 43 88'],
+        ['path','back-fold','M 69 79 Q 64 84 62 91']
+      ];
+      for(const [tag,cls,d] of shapes){
+        const shape=document.createElementNS(NS,tag);
+        shape.setAttribute('class',cls);
+        shape.setAttribute('d',d);
+        svg.append(shape);
+      }
+      return svg;
+    }
     function render(){if(!game)return;
       document.body.classList.add('game-active');
       const network=$('networkStatus');
@@ -2200,7 +2239,10 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       }else if(cueMove){
         cue.textContent='🎯 '+capturePositionText(cueMove.x,cueMove.y)+'の相手の駒を捕獲中…正体を確認しています';
       }
-      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative'||showFirstReveal());board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
+      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative'||showFirstReveal());board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin)+(isOwn?' facing-front':' facing-away');
+        if(isOwn)ghost.textContent='👻';
+        else ghost.append(ghostBackArt());
+        const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
         if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
       }
@@ -2216,8 +2258,11 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           cell.classList.add('capture-landing');
           // 被捕獲駒は先に中立色で見せ、衝突時に消す。正体は後の公開画面まで秘密。
           const victim=document.createElement('span');
-          victim.className='ghost enemy captured-victim'+(ghostSkin==='classic'?'':' skin-'+ghostSkin);
-          victim.textContent='👻';
+          const victimIsOwn=intro.attackerOwner!==role;
+          victim.className='ghost enemy captured-victim'+(ghostSkin==='classic'?'':' skin-'+ghostSkin)
+            +(victimIsOwn?' facing-front':' facing-away');
+          if(victimIsOwn)victim.textContent='👻';
+          else victim.append(ghostBackArt());
           victim.setAttribute('aria-hidden','true');
           cell.append(victim);
         }
