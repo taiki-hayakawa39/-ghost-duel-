@@ -2186,6 +2186,22 @@
         return;
       }
       if(m.t==='ready'){if(game.phase!=='setup'||game.ready[1-role])return;const hashes=m.hashes;const expected=game.pieces.filter(p=>p.owner===1-role).map(p=>p.id);if(!hashes||typeof hashes!=='object'||Object.keys(hashes).length!==8||!expected.every(id=>typeof hashes[id]==='string'&&/^[a-f0-9]{64}$/.test(hashes[id])))return gameError('配置の検証に失敗しました。');game.commitments[1-role]=hashes;game.ready[1-role]=true;history('相手が配置を確定しました');maybePlay();render();return;}
+      if(m.t==='scout'&&game.phase==='playing'&&!solo){
+        const v=validScout(m,1-role);
+        if(!v||v.target.owner!==role)return gameError('偵察条件を満たしていない操作が届きました。');
+        const secret=game.mySecrets[v.target.id];
+        if(!secret||!send({t:'scout-proof',round:game.round,seq:m.seq,id:m.id,
+          targetId:m.targetId,kind:secret.kind,salt:secret.salt}))
+          return gameError('偵察結果を確認できません。');
+        commitScout(m,1-role);return;
+      }
+      if(m.t==='scout-proof'&&scoutPending&&game.phase==='playing'&&!solo){
+        const pending=scoutPending,v=validScout(pending,role);
+        if(!v||m.seq!==pending.seq||m.id!==pending.id
+          ||m.targetId!==pending.targetId||!await validProof(v.target,m.kind,m.salt))
+          return gameError('偵察した駒の正体を検証できませんでした。');
+        commitScout(pending,role,m.kind);return;
+      }
       if(m.t==='move'&&game.phase==='playing'){const v=legal(m,1-role);if(!v)return gameError('相手から不正な手が届きました。');if(v.cap){if(v.cap.owner!==role)return gameError('取られた駒の確認に失敗しました。');const s=game.mySecrets[v.cap.id];send({t:'capture-proof',round:game.round,seq:m.seq,id:v.cap.id,kind:s.kind,salt:s.salt});commitMove(m,s.kind);}else commitMove(m,null);return;}
       if(m.t==='capture-proof'&&movePending&&game.phase==='playing'){const pending=movePending;const v=legal(pending,role,true);
         if(!v||!v.cap||pending.seq!==m.seq||v.cap.id!==m.id)return gameError('相手の取得情報が一致しません。');if(!await validProof(v.cap,m.kind,m.salt))return gameError('相手の駒の色を検証できませんでした。');movePending=null;commitMove(pending,m.kind);return;}
@@ -2220,6 +2236,24 @@
       const canEscape=cpu.find(p=>cpuSecrets[p.id]?.kind==='good'&&isExit(p));
       if(canEscape){game.seq++;game.moves.push({id:canEscape.id,owner:1,type:'escape',seq:game.seq});endGame(1,'青い駒を出口から脱出させました','escape');return;}
       const humans=game.pieces.filter(p=>p.owner===0);
+      if(game.match?.mode==='scout'&&!game.scoutUsed[1]&&game.seq>=2){
+        const options=[];
+        for(const p of cpu)for(const h of humans){
+          if(Math.max(Math.abs(p.x-h.x),Math.abs(p.y-h.y))===1
+            &&!game.cpuIntel[h.id])options.push({source:p,target:h});
+        }
+        if(options.length&&Math.random()<(cpuDifficulty==='easy'?.48:.8)){
+          // 対象の選択では人間の秘密の色を読まない。偵察を使った後のみ記憶する。
+          options.sort((a,b)=>Math.min(Math.abs(a.target.x-0),Math.abs(a.target.x-5))+
+            Math.abs(a.target.y-0)-Math.min(Math.abs(b.target.x-0),Math.abs(b.target.x-5))-
+            Math.abs(b.target.y-0));
+          const chosen=options[0];
+          const m={t:'scout',round:game.round,seq:game.seq+1,id:chosen.source.id,
+            targetId:chosen.target.id};
+          commitScout(m,1,game.mySecrets[chosen.target.id]?.kind);
+          return;
+        }
+      }
       const moves=[];
       for(const p of cpu){
         for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
@@ -2250,6 +2284,9 @@
           if(humans.some(h=>manhattan(h.x,h.y,m.x,m.y)===1))value+=2;
         }
         if(m.target){
+          const known=game.cpuIntel?.[m.target.id];
+          if(known==='good')value+=65;
+          else if(known==='bad')value-=100;
           value+=12;
           const urgent=threat(m.target);
           if(urgent<=1)value+=35;
