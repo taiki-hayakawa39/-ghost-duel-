@@ -930,6 +930,13 @@
 
 
 
+    // 新しいゲームモードはこの一覧に追加する（勝負形式・先手決めとは別）。
+    const GAME_MODES={
+      classic:{label:'👻 クラシック',description:'基本ルールの心理戦。特殊能力なし。',
+        rules:'青4体を取る・赤4体を取らせる・青で脱出、のいずれかで勝利。'},
+      scout:{label:'🔍 偵察モード',description:'1人につき1試合1回だけ、相手の駒の正体を確認。',
+        rules:'自分の駒から周囲1マス（縦・横・斜め）にいる相手の駒が対象。偵察は1手消費し、色は偵察した本人にだけ表示します。'}
+    };
     const FIRST_MODES=['dice','card','alternate','random'],SERIES_FORMATS=['single','best3'];
     const FIRST_MODE_LABELS={dice:'🎲 サイコロ',card:'🃏 トランプ',alternate:'🔄 交互',random:'🍀 おまかせ'};
     const FIRST_MODE_HELP={
@@ -947,15 +954,22 @@
     function updateFirstModeDescription(){
       $('firstModeDescription').textContent=FIRST_MODE_HELP[$('firstMode').value]||FIRST_MODE_HELP.dice;
     }
+    function setGameModeDescription(){
+      const mode=GAME_MODES[$('gameMode').value]||GAME_MODES.classic;
+      $('gameModeTitle').textContent=mode.label;
+      $('gameModeDescription').textContent=mode.description;
+      $('gameModeRules').textContent=mode.rules;
+    }
     function matchPreferences(){
       return {format:SERIES_FORMATS.includes($('seriesFormat').value)?$('seriesFormat').value:'single',
         method:FIRST_MODES.includes($('firstMode').value)?$('firstMode').value:'dice',
+        mode:Object.prototype.hasOwnProperty.call(GAME_MODES,$('gameMode').value)?$('gameMode').value:'classic',
         scores:[0,0],played:0,previousStarter:null};
     }
     function nextMatchSettings(){
       const m=game?.match;
       if(!m)return matchPreferences();
-      return {format:m.format,method:m.method,
+      return {format:m.format,method:m.method,mode:m.mode||'classic',
         scores:m.completed?[0,0]:m.scores.slice(),played:m.completed?0:m.played,
         previousStarter:m.previousStarter};
     }
@@ -963,17 +977,19 @@
       const s=seed||matchPreferences();
       const format=SERIES_FORMATS.includes(s.format)?s.format:'single';
       const method=FIRST_MODES.includes(s.method)?s.method:'dice';
+      const mode=Object.prototype.hasOwnProperty.call(GAME_MODES,s.mode)?s.mode:'classic';
       const played=Number.isInteger(s.played)&&s.played>=0&&s.played<=2?s.played:0;
       const scores=Array.isArray(s.scores)&&s.scores.length===2
         ?s.scores.map(v=>Number.isInteger(v)&&v>=0&&v<=2?v:0):[0,0];
       const previousStarter=[0,1].includes(s.previousStarter)?s.previousStarter:null;
       const starter=method==='alternate'?(previousStarter===null?0:1-previousStarter)
         :method==='random'?secureRandomBelow(2):null;
-      return {format,method,scores,played,previousStarter,starter};
+      return {format,method,mode,scores,played,previousStarter,starter};
     }
     function validRoundSettings(s){
       if(!s||typeof s!=='object'||!SERIES_FORMATS.includes(s.format)
          ||!FIRST_MODES.includes(s.method)
+         ||!Object.prototype.hasOwnProperty.call(GAME_MODES,s.mode)
          ||!Array.isArray(s.scores)||s.scores.length!==2
          ||!s.scores.every(x=>Number.isInteger(x)&&x>=0&&x<=2)
          ||!Number.isInteger(s.played)||s.played<0||s.played>2
@@ -1840,6 +1856,7 @@
         round:game.round,seq:game.seq,turn:game.turn,ready:game.ready,
         phase:game.phase==='disconnected'?game.resumePhase:game.phase,
         starter:game.starter,match:game.match,initiative:game.initiative,
+        scoutUsed:game.scoutUsed||[false,false],
         pieces:game.pieces.map(p=>[p.id,p.x,p.y]).sort((a,b)=>a[0].localeCompare(b[0])),
         commitments:game.commitments,
         captured:game.captured,hands:game.hands.map(hand=>hand.map(p=>[p.id,p.kind]))
@@ -1951,11 +1968,12 @@
       if(!validRoundSettings(settings))return gameError('先手決定の設定が正しくありません。');
       resetRematch();clearFirstReveal();cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
         starter:settings.starter,
-        match:{format:settings.format,method:settings.method,scores:settings.scores.slice(),
+        match:{format:settings.format,method:settings.method,mode:settings.mode,scores:settings.scores.slice(),
           played:settings.played,previousStarter:settings.previousStarter,completed:false},
         initiative:{attempt:1,values:[null,null],skipVotes:[false,false],note:''},
         startDescription:settings.starter===null?'':FIRST_MODE_LABELS[settings.method]
           +'で P'+(settings.starter+1)+'が先手に決定！',
+        scoutUsed:[false,false],scoutIntel:{},cpuIntel:{},
         pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:settings.starter??0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
@@ -2098,6 +2116,7 @@
         const expected=nextMatchSettings(),received=m.settings;
         if(!validRoundSettings(received)
           ||received.format!==expected.format||received.method!==expected.method
+          ||received.mode!==expected.mode
           ||received.played!==expected.played
           ||received.previousStarter!==expected.previousStarter
           ||JSON.stringify(received.scores)!==JSON.stringify(expected.scores))
@@ -2405,6 +2424,8 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('initiativeSkipDice').addEventListener('click',voteDiceSkip);
     $('firstMode').addEventListener('change',updateFirstModeDescription);
     updateFirstModeDescription();
+    $('gameMode').addEventListener('change',setGameModeDescription);
+    setGameModeDescription();
     $('resultInspect').addEventListener('click',()=>{
       hideResult();
       $('board').scrollIntoView({behavior:'smooth',block:'nearest'});
