@@ -2963,7 +2963,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     });
     for(const [homeId,gameId] of [
       ['homeBoardSize','boardSize'],['homeBoardColor','boardColor'],['homeEffectsMode','effectsMode']
-    ])$('homeBoardSize'===homeId?homeId:homeId).addEventListener('change',()=>{
+    ])$(homeId).addEventListener('change',()=>{
       $(gameId).value=$(homeId).value;
       saveDisplaySettings();
     });
