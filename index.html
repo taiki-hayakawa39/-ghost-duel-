@@ -1192,14 +1192,14 @@
         if(saved.solo?saved.room!=='SOLO':!CODE_RE.test(saved.room))return null;
         const g=saved.game;
         if(!g||!Number.isInteger(g.round)||g.round<1||g.round>10000
-           ||!['setup','playing','disconnected'].includes(g.phase)
+           ||!['initiative','setup','playing','disconnected'].includes(g.phase)
            ||!Array.isArray(g.pieces)||g.pieces.length>16
            ||!Array.isArray(g.hands)||g.hands.length!==2
            ||!Array.isArray(g.captured)||g.captured.length!==2
            ||!Array.isArray(g.ready)||g.ready.length!==2
            ||!g.mySecrets||typeof g.mySecrets!=='object'
            ||Object.keys(g.mySecrets).length!==8)return null;
-        if(g.phase==='disconnected'&&!['setup','playing'].includes(g.resumePhase))return null;
+        if(g.phase==='disconnected'&&!['initiative','setup','playing'].includes(g.resumePhase))return null;
         if(saved.solo&&(saved.role!==0||!saved.cpuSecrets||Object.keys(saved.cpuSecrets).length!==8))return null;
         return saved;
       }catch{return null;}
@@ -1428,9 +1428,12 @@
         waiting?'⏳ 相手の返事を待っています…':
         '👻 もう一戦しますか？';
       $('resultRestart').disabled=!connected||rematchLocal;
-      $('resultRestart').textContent=solo?'はい、CPUと再戦！':
+      const lastInSeries=game.match?.format==='best3'&&game.match?.completed;
+      const nextTitle=lastInSeries?'新しい3本勝負':game.match?.format==='best3'
+        ?'次の第'+(game.match.played+1)+'戦':'再戦';
+      $('resultRestart').textContent=solo?'✅ '+nextTitle+'へ':
         waiting?'✅ 再戦希望を送信済み':
-        rematchRemote?'🙋 再戦を承諾する':'はい、再戦！';
+        rematchRemote?'🙋 '+nextTitle+'を承諾':'✅ '+nextTitle+'へ';
       $('resultDecline').disabled=false;
       $('resultDecline').textContent=solo?'ホームに戻る':'今回はやめる';
       $('rematchStatus').textContent=solo?'同じ画面のまま新しい局を始められます。':
@@ -1439,10 +1442,10 @@
     function beginRematchIfReady(){
       if(!game||solo||game.phase!=='finished'||role!==0
          ||!connected||rematchStarted||!rematchLocal||!rematchRemote)return;
-      const old=game.round,next=old+1;
-      if(!send({t:'restart',round:old,next}))return;
+      const old=game.round,next=old+1,settings=makeRoundSettings(nextMatchSettings());
+      if(!send({t:'restart',round:old,next,settings}))return;
       rematchStarted=true;
-      startRound(next);
+      startRound(next,settings);
     }
     function requestRematch(){
       if(!game||game.phase!=='finished'||!connected||rematchStarted)return;
@@ -1492,6 +1495,7 @@
       };
       $('resultTagline').textContent=kind?variants[kind].title:'対局終了';
       $('resultReason').textContent=kind?variants[kind].reason:game.reason;
+      renderSeriesResult();
       renderResultStats();
       updateRematchUI();
       updateOpponentFriendUI();
@@ -1544,6 +1548,7 @@
       return JSON.stringify({
         round:game.round,seq:game.seq,turn:game.turn,ready:game.ready,
         phase:game.phase==='disconnected'?game.resumePhase:game.phase,
+        starter:game.starter,match:game.match,initiative:game.initiative,
         pieces:game.pieces.map(p=>[p.id,p.x,p.y]).sort((a,b)=>a[0].localeCompare(b[0])),
         commitments:game.commitments,
         captured:game.captured,hands:game.hands.map(hand=>hand.map(p=>[p.id,p.kind]))
@@ -1650,10 +1655,21 @@
       });
       c.on('error',err=>{if(conn===c)setRoomInfo('通信エラー: '+(err?.message||'接続を確認してください。'));});
     }
-    function startRound(n){resetRematch();cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:'setup',pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
+    function startRound(n,options=null){
+      const settings=options||makeRoundSettings(nextMatchSettings());
+      if(!validRoundSettings(settings))return gameError('先手決定の設定が正しくありません。');
+      resetRematch();cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
+        starter:settings.starter,
+        match:{format:settings.format,method:settings.method,scores:settings.scores.slice(),
+          played:settings.played,previousStarter:settings.previousStarter,completed:false},
+        initiative:{attempt:1,values:[null,null],note:''},
+        startDescription:settings.starter===null?'':FIRST_MODE_LABELS[settings.method]
+          +'で P'+(settings.starter+1)+'が先手に決定！',
+        pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:settings.starter??0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
       const mk=(who)=>{const rows=who===0?[4,5]:[0,1];let i=0;for(const y of rows)for(let x=1;x<=4;x++)game.pieces.push({id:'p'+who+'-'+i++,owner:who,x,y});};mk(0);mk(1);
       const kinds=['good','good','good','good','bad','bad','bad','bad']; const nums=new Uint8Array(8);crypto.getRandomValues(nums);for(let i=7;i>0;i--){const j=nums[i]%(i+1);[kinds[i],kinds[j]]=[kinds[j],kinds[i]];}let ix=0;for(const p of game.pieces){if(p.owner===role)game.mySecrets[p.id]={kind:kinds[ix++],salt:nonce()};}
       if(solo){
+        if(game.phase==='initiative')game.initiative.values[1]=randomDrawValue();
         const values=['good','good','good','good','bad','bad','bad','bad'];
         const random=new Uint8Array(8);crypto.getRandomValues(random);
         for(let i=7;i>0;i--){const j=random[i]%(i+1);[values[i],values[j]]=[values[j],values[i]];}
@@ -1668,7 +1684,12 @@
     async function commitOwn(){if(!game||game.phase!=='setup'||game.ready[role]||!connected)return;
       if(solo){game.ready[role]=true;history('あなたが配置を確定しました。CPUも準備完了！');maybePlay();render();return;}
       $('ready').disabled=true;try{const a=[];for(const p of game.pieces.filter(p=>p.owner===role)){const s=game.mySecrets[p.id];a.push([p.id,await digest(commitmentData(p,s.kind,s.salt))]);}const map=Object.fromEntries(a);game.commitments[role]=map;game.ready[role]=true;send({t:'ready',round:game.round,hashes:map});history('あなたが配置を確定しました');maybePlay();render();}catch(e){$('ready').disabled=false;gameError('配置の確定に失敗しました。');}}
-    function maybePlay(){if(game&&game.phase==='setup'&&game.ready.every(Boolean)){game.phase='playing';game.turn=0;history('両者の配置が決定。P1の手番です。');render();}}
+    function maybePlay(){if(game&&game.phase==='setup'&&game.ready.every(Boolean)){
+        game.phase='playing';game.turn=game.starter??0;
+        history('両者の配置が決定。P'+(game.turn+1)+'の手番です。');
+        render();
+        if(solo&&game.turn===1)queueCpu(650);
+      }}
     function ownPiece(id){return game.pieces.find(p=>p.id===id && p.owner===role);}
     function findPiece(id){return game.pieces.find(p=>p.id===id);}
     function at(x,y){return game.pieces.find(p=>p.x===x&&p.y===y);}
@@ -1684,7 +1705,7 @@
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました','blue');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました','red');}
       else {game.turn=1-game.turn;render();}}
-    function endGame(winner,reason,winType=null){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;game.winType=winType;history('決着！ '+reason);recordResult();sendAllSecrets();render();if(captureIntro!==null||!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
+    function endGame(winner,reason,winType=null){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;game.winType=winType;updateSeriesAfterResult(winner);history('決着！ '+reason);recordResult();sendAllSecrets();render();if(captureIntro!==null||!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
     function sendAllSecrets(){if(!game||!connected)return;
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
@@ -1730,9 +1751,13 @@
         return;
       }
       if(m.t==='hello-ready'&&role===1&&!game){send({t:'hello',v:2});return;}
-      if(m.t==='hello'&&role===0){if(game&&game.phase==='disconnected'){send({t:'resume-deny',round:game.round});return;}if(game&&game.phase!=='disconnected')return;startRound(1);send({t:'start',round:1});return;}
-      if(m.t==='start'&&role===1&&(!game||game.phase==='disconnected')){startRound(Number.isInteger(m.round)?m.round:1);return;}
+      if(m.t==='hello'&&role===0){if(game&&game.phase==='disconnected'){send({t:'resume-deny',round:game.round});return;}if(game&&game.phase!=='disconnected')return;const settings=makeRoundSettings(matchPreferences());startRound(1,settings);send({t:'start',round:1,settings});return;}
+      if(m.t==='start'&&role===1&&(!game||game.phase==='disconnected')){
+        if(!validRoundSettings(m.settings)||m.round!==1)return gameError('対戦設定を受信できませんでした。');
+        startRound(1,m.settings);return;
+      }
       if(!game||m.round!==game.round)return;
+      if(m.t==='initiative-draw'){handleFirstDraw(m);return;}
       if(m.t==='rematch-yes'&&game.phase==='finished'&&!solo){
         rematchRemote=true;
         rematchMessage=rematchLocal?'両方の希望を確認しています…':'相手がもう一戦したがっています！';
@@ -1764,7 +1789,14 @@
       if(m.t==='final-reveal'&&game.phase==='finished'){if(!Array.isArray(m.pieces)||m.pieces.length!==8)return gameError('終了時の色確認に失敗しました。');const seen=new Set(),reveal={};let good=0,bad=0;for(const item of m.pieces){const p0id='p'+(1-role)+'-';if(typeof item.id!=='string'||!item.id.startsWith(p0id)||seen.has(item.id)||!await validProof({owner:1-role,id:item.id},item.kind,item.salt))return gameError('終了時の駒の色が一致しません。');seen.add(item.id);reveal[item.id]=item.kind;if(item.kind==='good')good++;else bad++;}if(good!==4||bad!==4)return gameError('相手の色の数が正しくありません。');game.opponentRevealed=reveal;game.opponentVerified=true;history('相手の駒の色を確認できました');render();return;}
       if(m.t==='restart'&&role===1&&game.phase==='finished'
         &&rematchLocal&&rematchRemote&&Number.isInteger(m.next)&&m.next===game.round+1){
-        startRound(m.next);return;
+        const expected=nextMatchSettings(),received=m.settings;
+        if(!validRoundSettings(received)
+          ||received.format!==expected.format||received.method!==expected.method
+          ||received.played!==expected.played
+          ||received.previousStarter!==expected.previousStarter
+          ||JSON.stringify(received.scores)!==JSON.stringify(expected.scores))
+          return gameError('連戦設定が相手と一致しません。');
+        startRound(m.next,received);return;
       }
     }
     // CPUは相手の駒の色を参照せず、公開された盤面と取得状況だけから手を選ぶ。
@@ -1977,14 +2009,19 @@
       $('setupPresets').classList.toggle('hidden',game.phase!=='setup'||game.ready[role]);
       $('reactionBar').classList.toggle('hidden',solo||game.phase!=='playing');
       for(const node of $('reactionBar').querySelectorAll('button[data-reaction]'))node.disabled=!connected||game.phase!=='playing';
+      updateMatchPresentation();
       const last=game.lastMove;
       $('lastMoveBar').classList.toggle('hidden',!last||game.phase==='setup');
       $('replayLast').disabled=!last;
       $('lastMoveText').textContent=last?(last.owner===role?'自分':'相手')+'が直前に1マス移動しました':'';
       renderReview();
 $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'CPU・'+CPU_STYLE_LABELS[cpuStyle]:'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
-      const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
+      const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='initiative'?'🎲 先手を決めよう！':game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
       const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
+      if(game.phase==='initiative'){
+        $('gameHint').textContent='先手決めゲームで勝った側が、この試合の1手目を動かせます。';
+        $('moveMessage').textContent='先手を決めてから初期配置を始めます。';
+      }
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
       if(game.phase==='playing'){$('gameHint').textContent='自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';$('moveMessage').textContent=movePending?'相手の駒の色を確認しています…':myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';}
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
@@ -1999,7 +2036,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       }else if(cueMove){
         cue.textContent='🎯 '+capturePositionText(cueMove.x,cueMove.y)+'の相手の駒を捕獲中…正体を確認しています';
       }
-      const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
+      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
         if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
       }
@@ -2051,6 +2088,9 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('frontBlue').addEventListener('click',()=>applyPreset('good'));
     $('frontRed').addEventListener('click',()=>applyPreset('bad'));
     $('replayLast').addEventListener('click',replayLastMove);
+    $('initiativeDraw').addEventListener('click',submitFirstDraw);
+    $('firstMode').addEventListener('change',updateFirstModeDescription);
+    updateFirstModeDescription();
     $('resultInspect').addEventListener('click',()=>{
       hideResult();
       $('board').scrollIntoView({behavior:'smooth',block:'nearest'});
