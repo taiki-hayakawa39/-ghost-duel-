@@ -435,20 +435,19 @@
       .dice-cup{width:67px;height:67px}.dice-die{width:44px;height:44px;padding:8px}
       .dice-stage .dice-die i{width:6px;height:6px}}
 
-    /* 駒の向き：自分側は正面、相手側は相手から見て正面＝こちらからは後ろ姿。
-       表示の向きは所有者だけで決まり、秘密の赤青には依存しない。 */
-    .ghost.facing-away{--back-fill:#cedce8;--back-shadow:#91acc1}
-    .ghost.facing-away.good{--back-fill:#87cff6;--back-shadow:#4f9acb}
-    .ghost.facing-away.bad{--back-fill:#ffaab7;--back-shadow:#d8738a}
-    .ghost-back-art{display:block;position:relative;z-index:1;width:87%;height:87%;overflow:visible;flex:0 0 auto;
-      filter:drop-shadow(0 2px 1px #19374b33)}
-    .ghost-back-art .back-body{fill:var(--back-fill);stroke:var(--back-shadow);stroke-width:3.7;stroke-linejoin:round}
-    .ghost-back-art .back-gloss{fill:none;stroke:#fff;stroke-opacity:.72;stroke-width:5;stroke-linecap:round}
-    .ghost-back-art .back-fold{fill:none;stroke:var(--back-shadow);stroke-opacity:.85;stroke-width:2.5;stroke-linecap:round}
-    .ghost.facing-away.skin-glasses::before{
-      content:"";top:44%;left:50%;transform:translateX(-50%);
-      width:54%;height:9%;border:2px solid #263950;background:#43596b;border-radius:40%;
-    }
+    /* 相手の駒は盤を挟んだ反対側から読めるよう、顔付きの駒そのものを180度回転 */
+    .ghost.facing-away{transform:rotate(180deg)}
+    .cell.capture-target .ghost.facing-away{animation:capture-aim-pulse-away 1.05s ease-in-out infinite}
+    @keyframes capture-aim-pulse-away{0%,100%{transform:rotate(180deg) scale(1);filter:brightness(1)}50%{transform:rotate(180deg) scale(.9);filter:brightness(1.25)}}
+    .cell .ghost.captured-victim.facing-away{animation:capture-victim-fade-away .6s ease-in .1s both}
+    @keyframes capture-victim-fade-away{0%,20%{opacity:1;transform:rotate(180deg) scale(1)}100%{opacity:0;transform:rotate(180deg) scale(.4)}}
+    .initiative-secondary-actions{display:grid;gap:7px;grid-template-columns:1fr;margin:7px 0}
+    .initiative-secondary-actions button{min-height:44px;margin:0;font-size:13px;border:1px solid #92a8bf;background:#253f5c;color:#f4f8ff}
+    .initiative-skip-hint{font-size:11px;color:#c3d9eb;line-height:1.55;margin:0 0 6px}
+    .app-update{margin:12px 0 9px;padding:12px;border:1px solid #6288a6;border-radius:12px;background:#173147}
+    .app-update button{min-height:44px;max-width:100%;width:100%;font-weight:850}
+    .app-update p{font-size:12px;line-height:1.65;margin:8px 0 0;color:#d1e2f2}
+    .app-update button:disabled{opacity:.64}
   </style>
 </head>
 <body>
@@ -551,6 +550,10 @@
         <button type="button" id="join" class="secondary full" style="margin-top:10px">この部屋に参加する</button>
         <div id="homeMessage" class="status hidden" role="alert" style="margin-top:12px"></div>
         <p class="muted">※ オンライン対戦にはインターネットが必要です。途中で閉じた場合は、両端末で「前回の対局に戻る」を選ぶと再開を試せます。通信や保存状態によっては再開できません。</p>
+        <div class="app-update">
+          <button id="refreshApp" type="button" class="secondary">🔄 アプリを最新版に更新</button>
+          <p id="appUpdateStatus" role="status" aria-live="polite">ホーム画面に追加済みでも、このボタンで最新版を取得できます。通信が必要です。</p>
+        </div>
         <details class="install-guide">
           <summary>📲 iPhoneのホーム画面に追加して遊ぶ</summary>
           <p>Safariでこのページを開き、下の<strong>共有ボタン（□↑）</strong> → <strong>「ホーム画面に追加」</strong> → <strong>「追加」</strong>を選んでください。ホーム画面のオバケアイコンからゲームを起動できます。</p>
@@ -618,6 +621,11 @@
  <div class="dice-sound" aria-hidden="true"></div></div><span id="initiativeOpponent">？</span><small id="initiativeOpponentNote">まだです</small></div>
             </div>
             <button id="initiativeDraw" type="button" class="primary">🎲 サイコロを振る！</button>
+            <div class="initiative-secondary-actions">
+              <button id="initiativeSkipAnimation" type="button" class="secondary hidden">⏩ サイコロ演出をスキップ</button>
+              <button id="initiativeSkipDice" type="button" class="secondary hidden">🍀 サイコロ勝負をスキップ（自動抽選）</button>
+              <p id="initiativeSkipHint" class="initiative-skip-hint hidden">オンラインでは双方が選んだときだけ自動抽選します。</p>
+            </div>
             <p id="initiativeMessage" class="initiative-message" role="status" aria-live="polite">あなたの番です</p>
           </section>
           <div id="starterBanner" class="starter-banner hidden" role="status" aria-live="polite"></div>
@@ -2147,9 +2155,10 @@
       const cells=movedCells(),ghost=cells?.to?.querySelector('.ghost');
       if(!ghost||effectsMode==='off'||typeof ghost.animate!=='function'||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
       const src=cells.from.getBoundingClientRect(),dst=cells.to.getBoundingClientRect();
+      const facing=ghost.className.includes('facing-away')?' rotate(180deg)':' rotate(0deg)';
       ghost.animate(
-        [{transform:'translate('+Math.round(src.left-dst.left)+'px,'+Math.round(src.top-dst.top)+'px) scale(.96)',opacity:.88},
-         {transform:'translate(0,0) scale(1)',opacity:1}],
+        [{transform:'translate('+Math.round(src.left-dst.left)+'px,'+Math.round(src.top-dst.top)+'px)'+facing+' scale(.96)',opacity:.88},
+         {transform:'translate(0,0)'+facing+' scale(1)',opacity:1}],
         {duration:captureIntro?.seq===m.seq?610:270,easing:'ease-out'});
     }
     function replayLastMove(){
@@ -2180,29 +2189,6 @@
       }
     }
 
-    // 後ろ姿の専用イラスト。絵文字を180度回転させると逆さのオバケに
-    // なってしまうため、顔を描かない背面用シルエットを使う。
-    function ghostBackArt(){
-      const NS='http://www.w3.org/2000/svg';
-      const svg=document.createElementNS(NS,'svg');
-      svg.setAttribute('viewBox','0 0 100 106');
-      svg.setAttribute('class','ghost-back-art');
-      svg.setAttribute('aria-hidden','true');
-      const shapes=[
-        ['path','back-body','M 12 94 L 12 45 C 12 22 27 8 50 8 C 73 8 88 22 88 45 L 88 94 L 75 86 L 63 98 L 51 88 L 38 99 L 25 87 Z'],
-        ['path','back-gloss','M 29 24 C 23 29 20 35 20 46'],
-        ['path','back-fold','M 50 34 Q 56 57 51 75'],
-        ['path','back-fold','M 35 78 Q 40 82 43 88'],
-        ['path','back-fold','M 69 79 Q 64 84 62 91']
-      ];
-      for(const [tag,cls,d] of shapes){
-        const shape=document.createElementNS(NS,tag);
-        shape.setAttribute('class',cls);
-        shape.setAttribute('d',d);
-        svg.append(shape);
-      }
-      return svg;
-    }
     function render(){if(!game)return;
       document.body.classList.add('game-active');
       const network=$('networkStatus');
@@ -2240,8 +2226,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
         cue.textContent='🎯 '+capturePositionText(cueMove.x,cueMove.y)+'の相手の駒を捕獲中…正体を確認しています';
       }
       const board=$('board');board.classList.toggle('hidden',game.phase==='initiative'||showFirstReveal());board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin)+(isOwn?' facing-front':' facing-away');
-        if(isOwn)ghost.textContent='👻';
-        else ghost.append(ghostBackArt());
+        ghost.textContent='👻';
         const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
         if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
@@ -2261,8 +2246,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           const victimIsOwn=intro.attackerOwner!==role;
           victim.className='ghost enemy captured-victim'+(ghostSkin==='classic'?'':' skin-'+ghostSkin)
             +(victimIsOwn?' facing-front':' facing-away');
-          if(victimIsOwn)victim.textContent='👻';
-          else victim.append(ghostBackArt());
+          victim.textContent='👻';
           victim.setAttribute('aria-hidden','true');
           cell.append(victim);
         }
