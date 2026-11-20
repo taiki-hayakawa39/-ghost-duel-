@@ -903,6 +903,7 @@
     const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const scriptOk=typeof window.Peer==='function';
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
+    let scoutMode=false,scoutPending=null,scoutReport=null;
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
     let captureIntro=null,captureIntroTimer=null,firstRevealTimer=null,firstRevealRound=null;
@@ -1521,7 +1522,7 @@
       try{localStorage.setItem(SAVE_KEY,JSON.stringify({
         v:1,timestamp:Date.now(),solo,role,room,
         game,cpuSecrets:solo?cpuSecrets:null,cpuDifficulty,cpuStyle,
-        pendingCapture:!!movePending
+        pendingCapture:!!movePending||!!scoutPending
       }));}catch{}
     }
     function updateSaveOption(){
@@ -1547,6 +1548,11 @@
       }
       teardown();
       solo=saved.solo;role=saved.role;room=saved.room;game=saved.game;
+      if(!game.match)game.match={mode:'classic'};
+      if(!game.match.mode)game.match.mode='classic';
+      if(!Array.isArray(game.scoutUsed))game.scoutUsed=[false,false];
+      if(!game.scoutIntel||typeof game.scoutIntel!=='object')game.scoutIntel={};
+      if(!game.cpuIntel||typeof game.cpuIntel!=='object')game.cpuIntel={};
       cpuSecrets=solo?saved.cpuSecrets:{};
       cpuDifficulty=['easy','normal','hard'].includes(saved.cpuDifficulty)?saved.cpuDifficulty:'normal';
       $('cpuDifficulty').value=cpuDifficulty;
@@ -1913,7 +1919,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ clearAutoSave();resetRematch();clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -1966,7 +1972,7 @@
     function startRound(n,options=null){
       const settings=options||makeRoundSettings(nextMatchSettings());
       if(!validRoundSettings(settings))return gameError('先手決定の設定が正しくありません。');
-      resetRematch();clearFirstReveal();cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
+      resetRematch();clearFirstReveal();cancelCaptureIntro();scoutMode=false;scoutPending=null;scoutReport=null;pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
         starter:settings.starter,
         match:{format:settings.format,method:settings.method,mode:settings.mode,scores:settings.scores.slice(),
           played:settings.played,previousStarter:settings.previousStarter,completed:false},
@@ -2018,10 +2024,84 @@
     function sendAllSecrets(){if(!game||!connected)return;
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
-    function attemptMove(id,x,y){if(!game||!connected||movePending||captureInProgress()||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
+
+    function validScout(m,by){
+      if(!game||game.match?.mode!=='scout'||game.phase!=='playing'
+         ||game.turn!==by||game.scoutUsed?.[by]||m.t!=='scout'
+         ||m.round!==game.round||m.seq!==game.seq+1)return null;
+      const source=findPiece(m.id),target=findPiece(m.targetId);
+      if(!source||source.owner!==by||!target||target.owner===by)return null;
+      if(Math.max(Math.abs(source.x-target.x),Math.abs(source.y-target.y))!==1)return null;
+      return {source,target};
+    }
+    function scoutEligibleTargets(source){
+      if(!source||source.owner!==role)return [];
+      return game.pieces.filter(p=>p.owner!==role&&
+        Math.max(Math.abs(p.x-source.x),Math.abs(p.y-source.y))===1);
+    }
+    function commitScout(m,by,kind=null){
+      const v=validScout(m,by);if(!v)return false;
+      if(by===role){
+        if(!['good','bad'].includes(kind))return false;
+        game.scoutIntel[m.targetId]=kind;
+        scoutReport={round:game.round,id:m.targetId,kind,x:v.target.x,y:v.target.y};
+      }else if(solo&&by===1){
+        if(!['good','bad'].includes(kind))return false;
+        game.cpuIntel[m.targetId]=kind;
+      }
+      game.scoutUsed[by]=true;
+      game.moves.push({type:'scout',owner:by,id:m.id,targetId:m.targetId,seq:m.seq,
+        fromX:v.source.x,fromY:v.source.y,toX:v.target.x,toY:v.target.y});
+      game.seq=m.seq;game.turn=1-by;
+      if(by===role){scoutPending=null;scoutMode=false;selection=null;}
+      history('P'+(by+1)+'が偵察能力を使用しました（色は本人だけに公開）');
+      render();
+      if(solo&&game.phase==='playing'&&game.turn===1)queueCpu(650);
+      return true;
+    }
+    function attemptScout(targetId){
+      if(!game||!connected||scoutPending||movePending||captureInProgress()
+        ||game.phase!=='playing'||game.turn!==role||!scoutMode)return;
+      const own=selectedMine();if(!own)return;
+      const m={t:'scout',round:game.round,seq:game.seq+1,id:own.id,targetId};
+      if(!validScout(m,role))return;
+      if(solo)commitScout(m,role,cpuSecrets[targetId]?.kind);
+      else if(send(m)){scoutPending=m;render();}
+    }
+    function toggleScoutMode(){
+      if(!game||game.match?.mode!=='scout'||game.phase!=='playing'||!connected
+        ||game.turn!==role||game.scoutUsed[role]||movePending||scoutPending||captureInProgress())return;
+      scoutMode=!scoutMode;selection=null;render();
+    }
+    function renderScoutUI(){
+      const mode=game.match?.mode||'classic',details=GAME_MODES[mode]||GAME_MODES.classic;
+      $('ruleModeBadge').textContent=details.label+' ／ '+(mode==='scout'?'偵察1回':'特殊能力なし');
+      const enabled=mode==='scout';
+      $('scoutToolbar').classList.toggle('hidden',!enabled);
+      if(enabled){
+        const ownUsed=!!game.scoutUsed?.[role],otherUsed=!!game.scoutUsed?.[1-role];
+        $('scoutStatus').textContent='🔍 偵察：あなた '+(ownUsed?'使用済み':'残り1回')
+          +' ／ '+(solo?'CPU':'相手')+' '+(otherUsed?'使用済み':'残り1回');
+        const canUse=game.phase==='playing'&&game.turn===role&&!ownUsed&&connected
+          &&!movePending&&!scoutPending&&!captureInProgress();
+        $('scoutAction').disabled=!canUse;
+        $('scoutAction').textContent=scoutPending?'⏳ 色を検証中…':
+          ownUsed?'🔍 偵察は使用済み':scoutMode?'✖ 偵察をやめる':'🔍 偵察を使う（1回）';
+        $('scoutHint').textContent=scoutPending?'相手の駒の色を安全に確認しています…':
+          scoutMode?selectedMine()?'紫色に光る相手の駒をタップ（斜めも対象）':
+            'まず自分の駒を選んでください。周囲8マスの相手を調べます。':
+          '自分の駒の周囲1マス（斜めを含む）を偵察できます。1手消費し、結果は自分だけに公開。';
+      }
+      $('scoutReport').classList.toggle('hidden',!enabled||!scoutReport||scoutReport.round!==game.round);
+      if(enabled&&scoutReport&&scoutReport.round===game.round){
+        $('scoutReportText').textContent='🔍 偵察成功！ '+localSquare(scoutReport.x,scoutReport.y)+
+          'にいた相手の駒は '+(scoutReport.kind==='good'?'🔵 青':'🔴 赤')+' でした。';
+      }
+    }
+    function attemptMove(id,x,y){if(!game||!connected||movePending||scoutPending||captureInProgress()||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
       if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu(v.cap?captureDuration()+1080:500);return;}
       if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
-    function attemptEscape(){if(!game||!selectedMine()||!connected||captureInProgress())return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました','escape');selection=null;render();}
+    function attemptEscape(){if(!game||!selectedMine()||!connected||scoutMode||scoutPending||captureInProgress())return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました','escape');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
       if(m.t==='profile'){
@@ -2252,7 +2332,25 @@
     }
     function reshuffle(){if(!game||game.phase!=='setup'||game.ready[role])return;const p=game.pieces.filter(p=>p.owner===role);const keys=p.map(z=>game.mySecrets[z.id].kind);const n=new Uint8Array(8);crypto.getRandomValues(n);for(let i=7;i>0;i--){let j=n[i]%(i+1);[keys[i],keys[j]]=[keys[j],keys[i]];}p.forEach((q,i)=>game.mySecrets[q.id].kind=keys[i]);selection=null;render();}
     function handleCell(x,y){if(!game||!connected||captureInProgress())return;const target=at(x,y);if(game.phase==='setup'){if(game.ready[role]||!target||target.owner!==role)return;if(!selection){selection=target.id;}else if(selection===target.id){selection=null;}else{const first=game.mySecrets[selection],second=game.mySecrets[target.id];if(first&&second)[first.kind,second.kind]=[second.kind,first.kind];selection=null;}render();return;}
-      if(game.phase!=='playing'||game.turn!==role||movePending)return;if(selection&&target?.id===selection){selection=null;render();return;}if(selection){const p=selectedMine();if(p&&Math.abs(p.x-x)+Math.abs(p.y-y)===1&&(!target||target.owner!==role)){attemptMove(p.id,x,y);return;}}selection=target?.owner===role?target.id:null;render();}
+      if(game.phase!=='playing'||game.turn!==role||movePending||scoutPending)return;
+      if(selection&&target?.id===selection){selection=null;render();return;}
+      if(scoutMode){
+        if(selection&&target?.owner===1-role){
+          const p=selectedMine();
+          if(p&&Math.max(Math.abs(p.x-x),Math.abs(p.y-y))===1){
+            attemptScout(target.id);return;
+          }
+        }
+        selection=target?.owner===role?target.id:null;
+        render();return;
+      }
+      if(selection){
+        const p=selectedMine();
+        if(p&&Math.abs(p.x-x)+Math.abs(p.y-y)===1&&(!target||target.owner!==role)){
+          attemptMove(p.id,x,y);return;
+        }
+      }
+      selection=target?.owner===role?target.id:null;render();}
     function localToGlobal(cx,cy){return role===0?{x:cx,y:cy}:{x:5-cx,y:5-cy};}
 
     // 持ち駒は捕獲した順番のまま表示する。赤青は捕獲時に確定して両端末で共有される。
@@ -2419,6 +2517,8 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('frontBlue').addEventListener('click',()=>applyPreset('good'));
     $('frontRed').addEventListener('click',()=>applyPreset('bad'));
     $('replayLast').addEventListener('click',replayLastMove);
+    $('scoutAction').addEventListener('click',toggleScoutMode);
+    $('scoutReportClose').addEventListener('click',()=>{scoutReport=null;renderScoutUI();});
     $('initiativeDraw').addEventListener('click',submitFirstDraw);
     $('initiativeSkipAnimation').addEventListener('click',skipDiceAnimation);
     $('initiativeSkipDice').addEventListener('click',voteDiceSkip);
