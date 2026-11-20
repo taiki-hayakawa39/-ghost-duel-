@@ -532,6 +532,13 @@
       .bottom-tab-icon{font-size:20px}
       .bottom-tab-label{font-size:11px}
     }
+
+    .hub-setting-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px}
+    .hub-setting-grid label{min-width:0;display:grid;align-content:start;gap:6px;
+      font-size:12px;font-weight:800;color:#cee3f1}
+    .hub-setting-grid select{min-width:0;width:100%;min-height:45px;
+      font-size:16px;color:#fff;background:#132a40;border:1px solid #7794ac;border-radius:10px;padding:8px 9px}
+    @media(max-width:359px){.hub-setting-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -555,6 +562,22 @@
           <div id="tab-settings-appearance"></div>
           <h3 class="hub-section-title">🤖 CPUの設定</h3>
           <div id="tab-settings-cpu"></div>
+          <h3 class="hub-section-title">🎨 盤面と演出</h3>
+          <div class="hub-setting-grid">
+            <label for="homeBoardSize">盤面サイズ
+              <select id="homeBoardSize"><option value="small">小さめ</option><option value="normal">標準</option><option value="large">大きめ</option></select>
+            </label>
+            <label for="homeBoardColor">盤面カラー
+              <select id="homeBoardColor"><option value="night">夜空</option><option value="forest">森</option><option value="warm">木目調</option><option value="contrast">くっきり</option></select>
+            </label>
+            <label for="homeEffectsMode">アニメーション
+              <select id="homeEffectsMode"><option value="on">あり</option><option value="off">控えめ</option></select>
+            </label>
+            <label for="homeCaptureTempo">捕獲演出の速度
+              <select id="homeCaptureTempo"><option value="normal">通常（約4秒）</option><option value="quick">テンポ重視（約2秒）</option></select>
+            </label>
+          </div>
+          <p class="muted">こちらで変更した設定は対戦画面にも反映されます。</p>
           <h3 class="hub-section-title">🔄 アプリの管理</h3>
           <div id="tab-settings-app"></div>
           <div id="tab-settings-rules"></div>
@@ -1793,12 +1816,16 @@
       $('boardSize').value=boardSize;
       $('boardColor').value=boardColor;
       $('effectsMode').value=effectsMode;
+      $('homeBoardSize').value=boardSize;
+      $('homeBoardColor').value=boardColor;
+      $('homeEffectsMode').value=effectsMode;
       $('ghostSkinHome').value=ghostSkin;
       $('ghostSkinGame').value=ghostSkin;
       $('cpuStyle').value=cpuStyle;
       $('cpuStyleNote').textContent=CPU_STYLE_DESCRIPTIONS[cpuStyle];
       $('ghostSkinPreview').className='ghost enemy preview'+(ghostSkin==='classic'?'':' skin-'+ghostSkin);
       $('captureTempo').value=captureTempo;
+      $('homeCaptureTempo').value=captureTempo;
     }
     function readDisplaySettings(){
       try{
@@ -2929,7 +2956,22 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       if(captureRevealNow){captureRevealNow();return;}
       hideCapture();
     });
-    $('captureTempo').addEventListener('change',()=>{captureTempo=$('captureTempo').value;try{localStorage.setItem('ghostDuelCaptureTempo',captureTempo);}catch{}});
+    $('captureTempo').addEventListener('change',()=>{
+      captureTempo=$('captureTempo').value;
+      $('homeCaptureTempo').value=captureTempo;
+      try{localStorage.setItem('ghostDuelCaptureTempo',captureTempo);}catch{}
+    });
+    for(const [homeId,gameId] of [
+      ['homeBoardSize','boardSize'],['homeBoardColor','boardColor'],['homeEffectsMode','effectsMode']
+    ])$('homeBoardSize'===homeId?homeId:homeId).addEventListener('change',()=>{
+      $(gameId).value=$(homeId).value;
+      saveDisplaySettings();
+    });
+    $('homeCaptureTempo').addEventListener('change',()=>{
+      $('captureTempo').value=$('homeCaptureTempo').value;
+      captureTempo=$('captureTempo').value;
+      try{localStorage.setItem('ghostDuelCaptureTempo',captureTempo);}catch{}
+    });
     for(const id of ['boardSize','boardColor','effectsMode'])$(id).addEventListener('change',saveDisplaySettings);
     readDisplaySettings();
     readStats();renderStats();
@@ -2939,7 +2981,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     for(const button of $('reactionBar').querySelectorAll('button[data-reaction]')){
       button.addEventListener('click',()=>sendReaction(button.dataset.reaction));
     }
-    try{const saved=localStorage.getItem('ghostDuelCaptureTempo');if(saved==='quick'||saved==='normal'){captureTempo=saved;$('captureTempo').value=saved;}}catch{}
+    try{const saved=localStorage.getItem('ghostDuelCaptureTempo');if(saved==='quick'||saved==='normal'){captureTempo=saved;$('captureTempo').value=saved;$('homeCaptureTempo').value=saved;}}catch{}
     $('restoreSaved').addEventListener('click',restoreSavedGame);
     $('discardSaved').addEventListener('click',clearAutoSave);
     window.addEventListener?.('pagehide',persistGame);
