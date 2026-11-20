@@ -2382,6 +2382,59 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
         $('friendCodeInput').value='';$('friendNameInput').value='';
       }
     });
+
+    // iPhoneのホーム画面にインストール後も、アプリ内から明示的に最新版を取得する。
+    // 初期化済みの対局を安全に扱うため、この操作はホーム画面からだけ行う。
+    async function refreshInstalledApp(){
+      const button=$('refreshApp'),status=$('appUpdateStatus');
+      if(game&&game.phase!=='finished'){
+        status.textContent='対局中は更新できません。対局を終えてホーム画面からお試しください。';
+        return;
+      }
+      if(typeof fetch!=='function'){
+        status.textContent='この環境では更新の確認ができません。';
+        return;
+      }
+      button.disabled=true;
+      status.textContent='🌐 最新版を取得しています…';
+      try{
+        // Safari / インストール済みPWAの双方で通常のブラウザキャッシュを迂回する。
+        const url=new URL('./index.html',location.href);
+        url.searchParams.set('gd_refresh',String(Date.now()));
+        const response=await fetch(url.href,{cache:'no-store'});
+        if(!response.ok)throw Error('HTTP '+response.status);
+        const html=await response.text();
+        if(!html.includes('ゴースト・デュエル')||!html.includes('id="home"')){
+          throw Error('Unexpected page response');
+        }
+        // Service Workerを再照会し、オフライン用のHTMLキャッシュも置き換える。
+        if(navigator.serviceWorker?.getRegistration){
+          try{
+            const reg=await navigator.serviceWorker.getRegistration();
+            if(reg)await reg.update();
+          }catch(e){console.warn('Service Worker update check:',e);}
+        }
+        if('caches' in window&&typeof Response!=='undefined'){
+          try{
+            const keys=await window.caches.keys();
+            for(const key of keys.filter(name=>name.startsWith('ghost-duel-shell-'))){
+              const cache=await window.caches.open(key);
+              const fresh=()=>new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8'}});
+              await cache.put('./index.html',fresh());
+              await cache.put('./',fresh());
+            }
+          }catch(e){console.warn('Offline cache refresh:',e);}
+        }
+        status.textContent='✅ 最新版を取得しました。画面を更新します！';
+        location.reload();
+      }catch(e){
+        status.textContent='⚠️ 更新できませんでした。ネット接続を確認して再度お試しください。';
+        console.warn('Manual update failed:',e);
+      }finally{
+        button.disabled=false;
+      }
+    }
+    $('refreshApp').addEventListener('click',refreshInstalledApp);
     $('soloStart').addEventListener('click',startSolo);$('soloLeave').addEventListener('click',teardown);
     $('create').addEventListener('click',create);$('join').addEventListener('click',join);$('joinCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});$('leave').addEventListener('click',teardown);$('copyLink').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(inviteUrl());$('shareHint').textContent='招待URLをコピーしました。相手に送ってください。';}catch{$('shareHint').textContent='コピーできませんでした。部屋番号 '+room+' を相手に伝えてください。';}});
     $('shareLink').addEventListener('click',async()=>{if(!navigator.share){$('shareHint').textContent='この端末では共有メニューを開けません。部屋番号 '+room+' を伝えてください。';return;}try{await navigator.share({title:'ゴースト・デュエル',text:'この部屋で対戦しよう！ 番号：'+room,url:inviteUrl()});}catch{}});
@@ -2392,7 +2445,9 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     });
     if('serviceWorker' in navigator){
       window.addEventListener('load',()=>{
-        navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('Offline cache not available',e));
+        navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'})
+          .then(reg=>reg.update().catch(()=>{}))
+          .catch(e=>console.warn('Offline cache not available',e));
       });
     }
     const query=new URL(location.href).searchParams.get('room');if(query&&CODE_RE.test(query.toUpperCase()))$('joinCode').value=query.toUpperCase();
