@@ -2094,7 +2094,7 @@
       }
       $('scoutReport').classList.toggle('hidden',!enabled||!scoutReport||scoutReport.round!==game.round);
       if(enabled&&scoutReport&&scoutReport.round===game.round){
-        $('scoutReportText').textContent='🔍 偵察成功！ '+localSquare(scoutReport.x,scoutReport.y)+
+        $('scoutReportText').textContent='🔍 偵察成功！ '+capturePositionText(scoutReport.x,scoutReport.y)+
           'にいた相手の駒は '+(scoutReport.kind==='good'?'🔵 青':'🔴 赤')+' でした。';
       }
     }
@@ -2408,6 +2408,9 @@
         const who=m.owner===role?'あなた':solo?'CPU':'相手';
         li.textContent=(index+1)+'手目 '+(m.type==='escape'
           ?who+'が青い駒を脱出'
+          :m.type==='scout'?
+            who+'が '+localSquare(m.fromX,m.fromY)+' から '+localSquare(m.toX,m.toY)+
+              ' の駒を偵察（色は本人にのみ公開）'
           :who+'：'+localSquare(m.fromX,m.fromY)+' → '+localSquare(m.toX,m.toY)
            +(m.captured?' ／ '+(m.captured==='good'?'青':'赤')+'を捕獲':''));
         ol.append(li);
@@ -2472,6 +2475,7 @@
       $('reactionBar').classList.toggle('hidden',solo||game.phase!=='playing');
       for(const node of $('reactionBar').querySelectorAll('button[data-reaction]'))node.disabled=!connected||game.phase!=='playing';
       updateMatchPresentation();
+      renderScoutUI();
       const last=game.lastMove;
       $('lastMoveBar').classList.toggle('hidden',!last||game.phase==='setup');
       $('replayLast').disabled=!last;
@@ -2479,13 +2483,20 @@
       renderReview();
 $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'CPU・'+CPU_STYLE_LABELS[cpuStyle]:'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='initiative'?'🎲 先手を決めよう！':game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
-      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('ready').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
+      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('ready').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!scoutPending&&!scoutMode&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
       if(game.phase==='initiative'){
         $('gameHint').textContent='先手決めゲームで勝った側が、この試合の1手目を動かせます。';
         $('moveMessage').textContent='先手を決めてから初期配置を始めます。';
       }
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
-      if(game.phase==='playing'){$('gameHint').textContent='自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';$('moveMessage').textContent=movePending?'相手の駒の色を確認しています…':myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';}
+      if(game.phase==='playing'){
+        $('gameHint').textContent=scoutMode?'🔍 偵察：まず自分の駒を選び、斜めを含む周囲1マスの相手をタップ！':
+          '自分の駒は色つき、相手の駒は色なし。自分の駒→移動先の順にタップ。';
+        $('moveMessage').textContent=scoutPending?'偵察した駒の正体を検証中です…':
+          movePending?'相手の駒の色を確認しています…':
+          scoutMode?'🔍 偵察モード。自分の駒と相手の駒を選択してください。':
+          myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';
+      }
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
       if(game.phase==='disconnected'){$('gameHint').textContent='相手との通信が切れたため手番を進められません。';$('moveMessage').textContent='「退出」を押して新しい部屋を作成してください。';}
       const intro=captureIntro&&captureIntro.round===game.round?captureIntro:null;
@@ -2498,16 +2509,29 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       }else if(cueMove){
         cue.textContent='🎯 '+capturePositionText(cueMove.x,cueMove.y)+'の相手の駒を捕獲中…正体を確認しています';
       }
-      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative'||showFirstReveal());board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin)+(isOwn?' facing-front':' facing-away');
+      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative'||showFirstReveal());board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const intel=!isOwn?game.scoutIntel?.[p.id]:null;
+        const kind=isOwn?game.mySecrets[p.id]?.kind:(game.opponentRevealed[p.id]||intel);
+        const ghost=document.createElement('span');ghost.className='ghost '+
+          (kind==='good'?'good':kind==='bad'?'bad':'enemy')+
+          (ghostSkin==='classic'?'':' skin-'+ghostSkin)+(isOwn?' facing-front':' facing-away')+
+          (intel?' scout-known':'');
         ghost.textContent='👻';
-        const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
+        const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';
+        if(kind&&!isOwn)mark.textContent=kind==='good'?'青':'赤';
+        if(intel&&!isOwn)mark.classList.add(intel==='good'?'intel-good':'intel-bad');
+        ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
         if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
       }
       if(selection&&p?.id===selection)cell.classList.add('selected');
-      if(sel&&game.phase==='playing'&&myturn&&!movePending&&Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role)){
-        cell.classList.add('valid');
-        if(p&&p.owner!==role)cell.classList.add('capture-target');
+      if(sel&&game.phase==='playing'&&myturn&&!movePending&&!scoutPending){
+        if(scoutMode){
+          if(p&&p.owner!==role&&Math.max(Math.abs(sel.x-x),Math.abs(sel.y-y))===1)
+            cell.classList.add('scout-target');
+        }else if(Math.abs(sel.x-x)+Math.abs(sel.y-y)===1&&(!p||p.owner!==role)){
+          cell.classList.add('valid');
+          if(p&&p.owner!==role)cell.classList.add('capture-target');
+        }
       }
       if(cueMove&&cueMove.x===x&&cueMove.y===y)cell.classList.add('capture-pending');
       if(intro){
