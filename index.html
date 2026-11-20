@@ -2070,6 +2070,7 @@
       game.moves.push({type:'scout',owner:by,id:m.id,targetId:m.targetId,seq:m.seq,
         fromX:v.source.x,fromY:v.source.y,toX:v.target.x,toY:v.target.y});
       game.seq=m.seq;game.turn=1-by;
+      game.lastMove=null; // 偵察は移動ではないので「直前の移動」ハイライトを残さない
       if(by===role){scoutPending=null;scoutMode=false;selection=null;}
       history('P'+(by+1)+'が偵察能力を使用しました（色は本人だけに公開）');
       render();
