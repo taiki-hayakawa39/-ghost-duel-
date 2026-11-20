@@ -1069,6 +1069,83 @@
       }
       select.value=chosen;setGameModeDescription();
     }
+
+    const HOME_TABS=['play','friends','stats','settings'],HOME_TAB_KEY='ghostDuelHomeTabV1';
+    let activeHomeTab='play';
+    function syncBottomTabs(){
+      $('bottomTabs').classList.toggle('hidden',$('home').classList.contains('hidden'));
+    }
+    function switchHomeTab(tab,scroll=true){
+      if(!HOME_TABS.includes(tab))tab='play';
+      activeHomeTab=tab;
+      for(const key of HOME_TABS){
+        const panel=$('tab-'+key);
+        const button=$({play:'navPlay',friends:'navFriends',stats:'navStats',settings:'navSettings'}[key]);
+        const selected=key===tab;
+        panel.classList.toggle('hidden',!selected);
+        button.classList.toggle('active',selected);
+        button.setAttribute('aria-selected',selected?'true':'false');
+        button.tabIndex=selected?0:-1;
+      }
+      if(tab==='stats')renderStats();
+      if(tab==='friends')renderFriends();
+      try{localStorage.setItem(HOME_TAB_KEY,tab);}catch{}
+      syncBottomTabs();
+      if(scroll&&typeof window.scrollTo==='function')window.scrollTo(0,0);
+    }
+    function initializeHomeTabs(){
+      // 既存UIのDOM要素をそのまま移すため、対戦・設定・フレンドの
+      // イベントや保存データ、オンライン通信の処理は変更されない。
+      const home=$('home');
+      const children=Array.from(home.children);
+      for(const item of children){
+        if(item.classList.contains('hub-tab-panel'))continue;
+        if(item.id==='friendsPanel'){
+          $('tab-friends').append(item);
+          item.open=true;
+        }else if(item.id==='statsPanel'){
+          $('tab-stats').append(item);
+          item.open=true;
+        }else if(item.classList.contains('skin-picker')){
+          $('tab-settings-appearance').append(item);
+        }else if(item.classList.contains('cpu-choice')||
+                 item.classList.contains('cpu-personality')||item.id==='cpuStyleNote'){
+          $('tab-settings-cpu').append(item);
+        }else if(item.classList.contains('app-update')||
+                 item.classList.contains('install-guide')){
+          $('tab-settings-app').append(item);
+        }else{
+          $('tab-play').append(item);
+        }
+      }
+      $('tab-settings-rules').append($('rulesPanel'));
+      const navIds={play:'navPlay',friends:'navFriends',stats:'navStats',settings:'navSettings'};
+      for(const key of HOME_TABS){
+        $(navIds[key]).addEventListener('click',()=>switchHomeTab(key));
+      }
+      $('openCpuSettings').addEventListener('click',()=>{
+        switchHomeTab('settings');
+        $('cpuDifficulty').focus();
+      });
+      $('bottomTabs').addEventListener('keydown',e=>{
+        const current=HOME_TABS.indexOf(activeHomeTab);
+        let index=current;
+        if(e.key==='ArrowRight')index=(current+1)%HOME_TABS.length;
+        else if(e.key==='ArrowLeft')index=(current+HOME_TABS.length-1)%HOME_TABS.length;
+        else if(e.key==='Home')index=0;
+        else if(e.key==='End')index=HOME_TABS.length-1;
+        else return;
+        e.preventDefault();
+        const next=HOME_TABS[index];
+        switchHomeTab(next);
+        $(navIds[next]).focus();
+      });
+      let remembered='play';
+      try{remembered=localStorage.getItem(HOME_TAB_KEY)||'play';}catch{}
+      // 招待URL経由では部屋番号の入力欄が見える対戦タブを優先する。
+      const invitation=new URL(location.href).searchParams.get('room');
+      switchHomeTab(invitation?'play':remembered,false);
+    }
     function matchPreferences(){
       return {format:SERIES_FORMATS.includes($('seriesFormat').value)?$('seriesFormat').value:'single',
         method:FIRST_MODES.includes($('firstMode').value)?$('firstMode').value:'dice',
@@ -1671,6 +1748,7 @@
       updateCPUStyle(CPU_STYLES.includes(saved.cpuStyle)?saved.cpuStyle:cpuStyle);
       selection=null;movePending=null;finishing=false;
       $('home').classList.add('hidden');
+      syncBottomTabs();
       $('gamePanel').classList.remove('hidden');
       if(solo){
         connected=true;
@@ -2034,14 +2112,14 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
-    function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
+    function teardown(){ clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs(); }
+    function enterRoom(){ $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
       updateCPUStyle($('cpuStyle').value);
       if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
       teardown();solo=true;connected=true;role=0;room='SOLO';
-      $('home').classList.add('hidden');$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
+      $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
       startRound(1);
     }
     function create(){opponentProfile=null;updateOpponentFriendUI();if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
@@ -2981,6 +3059,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           .catch(e=>console.warn('Offline cache not available',e));
       });
     }
+    initializeHomeTabs();
     const query=new URL(location.href).searchParams.get('room');if(query&&CODE_RE.test(query.toUpperCase()))$('joinCode').value=query.toUpperCase();
     if(!scriptOk)notice('homeMessage','2人オンライン対戦用の通信機能を読み込めません。CPU戦はプレイできます。',true);
   })();
