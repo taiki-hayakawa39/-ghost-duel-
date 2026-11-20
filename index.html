@@ -2066,7 +2066,8 @@
       return validInitialProof({owner:piece.owner,id:origin},kind,salt);
     }
     function gameError(msg){if(game){game.error=msg;if(game.phase!=='finished')game.phase='disconnected';render();$('moveMessage').textContent=msg;}else setRoomInfo(msg);}
-    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const from={x:attacker.x,y:attacker.y};const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');scheduleCaptureIntro(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor],m,from,targetId);}
+    function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;
+      game.lastTransform=null;const attacker=findPiece(m.id);const from={x:attacker.x,y:attacker.y};const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');scheduleCaptureIntro(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor],m,from,targetId);}
       else history('P'+(attacker.owner+1)+'が駒を動かしました');
       game.lastMove={id:attacker.id,owner:attacker.owner,fromX:from.x,fromY:from.y,toX:m.x,toY:m.y,seq:m.seq};
       game.moves.push({...game.lastMove,type:'move',captured:target?capturedColor:null});
@@ -2193,6 +2194,7 @@
       game.moves.push({type:'scout',owner:by,id:m.id,targetId:m.targetId,seq:m.seq,
         fromX:v.source.x,fromY:v.source.y,toX:v.target.x,toY:v.target.y});
       game.seq=m.seq;game.turn=1-by;
+      game.lastTransform=null;
       game.lastMove=null; // 偵察は移動ではないので「直前の移動」ハイライトを残さない
       if(by===role){scoutPending=null;scoutMode=false;selection=null;}
       history('P'+(by+1)+'が偵察能力を使用しました（色は本人だけに公開）');
@@ -2239,10 +2241,10 @@
           'にいた相手の駒は '+(scoutReport.kind==='good'?'🔵 青':'🔴 赤')+' でした。';
       }
     }
-    function attemptMove(id,x,y){if(!game||!connected||movePending||scoutPending||captureInProgress()||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
+    function attemptMove(id,x,y){if(!game||!connected||movePending||scoutPending||transformMode||captureInProgress()||game.phase!=='playing'||game.turn!==role)return;const m={t:'move',round:game.round,seq:game.seq+1,id,x,y};const v=legal(m,role);if(!v)return;selection=null;
       if(solo){const kind=v.cap?cpuSecrets[v.cap.id].kind:null;commitMove(m,kind);queueCpu(v.cap?captureDuration()+1080:500);return;}
       if(v.cap){movePending=m;send(m);history('相手の駒を取っています…');render();}else{send(m);commitMove(m,null);}}
-    function attemptEscape(){if(!game||!selectedMine()||!connected||scoutMode||scoutPending||captureInProgress())return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました','escape');selection=null;render();}
+    function attemptEscape(){if(!game||!selectedMine()||!connected||scoutMode||transformMode||scoutPending||captureInProgress())return;const p=selectedMine();const s=game.mySecrets[p.id];if(s?.kind!=='good'||!isExit(p))return;const m={t:'escape',round:game.round,seq:game.seq+1,id:p.id,kind:'good',salt:s.salt};if(!legal(m,role))return;if(!solo)send(m);game.moves.push({id:p.id,owner:role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(role,'青い駒を出口から脱出させました','escape');selection=null;render();}
     function selectedMine(){return selection?ownPiece(selection):null;}
     async function handleMessage(m){if(!m||typeof m!=='object'||!connected)return;
       if(m.t==='profile'){
@@ -2327,6 +2329,11 @@
         return;
       }
       if(m.t==='ready'){if(game.phase!=='setup'||game.ready[1-role])return;const hashes=m.hashes;const expected=game.pieces.filter(p=>p.owner===1-role).map(p=>p.id);if(!hashes||typeof hashes!=='object'||Object.keys(hashes).length!==8||!expected.every(id=>typeof hashes[id]==='string'&&/^[a-f0-9]{64}$/.test(hashes[id])))return gameError('配置の検証に失敗しました。');game.commitments[1-role]=hashes;game.ready[1-role]=true;history('相手が配置を確定しました');maybePlay();render();return;}
+      if(m.t==='transform'&&game.phase==='playing'&&!solo){
+        if(!validTransform(m,1-role))return gameError('相手の正体変化の条件が正しくありません。');
+        if(!commitTransform(m,1-role))return gameError('相手の正体変化を反映できませんでした。');
+        return;
+      }
       if(m.t==='scout'&&game.phase==='playing'&&!solo){
         const v=validScout(m,1-role);
         if(!v||v.target.owner!==role)return gameError('偵察条件を満たしていない操作が届きました。');
@@ -2400,6 +2407,15 @@
       const cpu=game.pieces.filter(p=>p.owner===1);
       const canEscape=cpu.find(p=>cpuSecrets[p.id]?.kind==='good'&&isExit(p));
       if(canEscape){game.seq++;game.moves.push({id:canEscape.id,owner:1,type:'escape',seq:game.seq});endGame(1,'青い駒を出口から脱出させました','escape');return;}
+      if(game.match?.mode==='transform'&&!game.transformUsed[1]&&game.seq>=3&&Math.random()<.38){
+        const opts=transformOptions(1);
+        if(opts.length){
+          // CPUの正体変化は自分の駒色だけで判断し、相手の色を読まない。
+          const pair=opts[Math.floor(Math.random()*opts.length)];
+          if(commitTransform({t:'transform',round:game.round,seq:game.seq+1,a:pair.a.id,b:pair.b.id},1))
+            return;
+        }
+      }
       const humans=game.pieces.filter(p=>p.owner===0);
       if(game.match?.mode==='scout'&&!game.scoutUsed[1]&&game.seq>=2){
         const options=[];
@@ -2536,6 +2552,17 @@
     function handleCell(x,y){if(!game||!connected||captureInProgress())return;const target=at(x,y);if(game.phase==='setup'){if(game.ready[role]||!target||target.owner!==role)return;if(!selection){selection=target.id;}else if(selection===target.id){selection=null;}else{const first=game.mySecrets[selection],second=game.mySecrets[target.id];if(first&&second)[first.kind,second.kind]=[second.kind,first.kind];selection=null;}render();return;}
       if(game.phase!=='playing'||game.turn!==role||movePending||scoutPending)return;
       if(selection&&target?.id===selection){selection=null;render();return;}
+      if(transformMode){
+        if(selection&&target?.owner===role){
+          const a=selectedMine(),b=target;
+          if(a&&Math.abs(a.x-b.x)+Math.abs(a.y-b.y)===1
+             &&game.mySecrets[a.id]?.kind!==game.mySecrets[b.id]?.kind){
+            attemptTransform(b.id);return;
+          }
+        }
+        selection=target?.owner===role?target.id:null;
+        render();return;
+      }
       if(scoutMode){
         if(selection&&target?.owner===1-role){
           const p=selectedMine();
