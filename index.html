@@ -293,6 +293,34 @@
     @keyframes capture-ring{0%{opacity:1;transform:scale(.5)}80%{opacity:1}100%{opacity:0;transform:scale(1.4)}}
     @keyframes capture-victim-fade{0%,20%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.4)}}
     @media(prefers-reduced-motion:reduce){.cell.capture-target .ghost,.cell.capture-landing::before,.cell .ghost.captured-victim{animation:none!important}.cell .ghost.captured-victim{display:none}}
+
+    /* 35: 対戦成績はこのブラウザだけに保存。対局中は邪魔にならない表示にする */
+    .stats-panel{margin:12px 0;padding:10px 12px;background:#142c43;border:1px solid #6a8ea9;border-radius:12px}
+    .stats-panel summary{cursor:pointer;min-height:40px;align-content:center;font-size:15px;font-weight:850}
+    .stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0}
+    .stats-number{padding:9px 5px;border:1px solid #54718c;border-radius:9px;background:#1b364f;text-align:center;min-width:0}
+    .stats-number strong{display:block;color:#ffe0a1;font-size:clamp(19px,5vw,25px);font-weight:950;white-space:nowrap}
+    .stats-number span{display:block;color:#c4d9ee;font-size:11px;margin-top:4px}
+    .stats-breakdown{font-size:12px;line-height:1.8;color:#d4e5f5}
+    .stats-breakdown strong{color:#ffdfa0}
+    .stats-recent{margin:8px 0 0;padding-left:20px;font-size:12px;line-height:1.7;color:#d0e5f5}
+    .stats-footnote{margin:10px 0 0;color:#acc6d9;font-size:11px;line-height:1.65}
+    .result-stats{font-size:12px;line-height:1.65;color:#e4eefd;margin:5px 0 11px;padding:8px;border:1px solid #7896b7;border-radius:10px;background:#1a3550}
+    /* 37: 駒の見た目は赤青とは無関係で、盤面上の全駒を同一スキンにする */
+    .skin-picker{margin:12px 0 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid #58768e;border-radius:12px;padding:10px;background:#162e44}
+    .skin-picker label{flex:1 1 110px;font-size:13px;font-weight:850}
+    .skin-picker select{flex:1 1 158px;border:1px solid #7b9cb4;background:#15283b;color:#fff;font-size:16px;min-height:42px;border-radius:9px;padding:8px}
+    .skin-picker .ghost.preview{width:72px;height:72px;font-size:42px;flex:none;margin:auto}
+    .skin-picker p{width:100%;margin:0;color:#b8cee2;font-size:11px;line-height:1.6}
+    .ghost[class*="skin-"]::before{position:absolute;z-index:3;display:block;pointer-events:none;text-shadow:0 1px 2px #17283a80;line-height:1}
+    .ghost.skin-hat::before{content:"🎩";font-size:.55em;top:-.38em;left:50%;transform:translateX(-50%) rotate(-8deg)}
+    .ghost.skin-bow::before{content:"🎀";font-size:.48em;top:-.16em;right:-.24em;transform:rotate(13deg)}
+    .ghost.skin-glasses::before{content:"🕶️";font-size:.60em;top:.17em;left:50%;transform:translateX(-50%)}
+    /* 39: CPUの強さとは別に性格を選ぶ */
+    .cpu-personality{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 3px;font-size:14px}
+    .cpu-personality select{width:min(58%,238px);min-width:145px;border:1px solid #7690a8;border-radius:9px;background:#15283b;color:#f0f7ff;min-height:40px;padding:7px;font-size:16px}
+    .cpu-style-note{font-size:12px;line-height:1.65;color:#bcd9ed;margin:2px 0 12px}
+    @media(max-width:360px){.stats-grid{gap:4px}.stats-number{padding:7px 2px}.stats-number strong{font-size:19px}.skin-picker .ghost.preview{width:63px;height:63px}}
   </style>
 </head>
 <body>
@@ -327,7 +355,41 @@
           <div id="friendList" aria-label="フレンド一覧"></div>
           <p class="friend-hint">登録はこの端末内のみ。フレンドのオンライン状態や通知は確認できません。招待ボタンからURLを共有してください。</p>
         </details>
+        <details id="statsPanel" class="stats-panel">
+          <summary>🏆 あなたの対戦成績 <span id="statsCompact">対戦0回</span></summary>
+          <div class="stats-grid">
+            <div class="stats-number"><strong id="statsGames">0</strong><span>総対戦数</span></div>
+            <div class="stats-number"><strong id="statsWins">0勝</strong><span>勝利・敗北</span></div>
+            <div class="stats-number"><strong id="statsRate">0%</strong><span>勝率</span></div>
+            <div class="stats-number"><strong id="statsStreak">0</strong><span>現在の連勝</span></div>
+            <div class="stats-number"><strong id="statsBestStreak">0</strong><span>最高連勝</span></div>
+            <div class="stats-number"><strong id="statsCpuOnline">0 / 0</strong><span>CPU戦 / 対人戦</span></div>
+          </div>
+          <div id="statsBreakdown" class="stats-breakdown">青・赤・脱出の勝利数を表示します。</div>
+          <div id="statsFriend" class="stats-breakdown"></div>
+          <p class="stats-breakdown" style="margin:8px 0 3px;font-weight:800">最近の対局</p>
+          <ol id="statsRecent" class="stats-recent"></ol>
+          <p class="stats-footnote">この端末での記録のみ。ブラウザのデータを消すと成績も消えます。過去の対戦分は含まれません。</p>
+        </details>
+        <div class="skin-picker">
+          <label for="ghostSkinHome">👻 オバケの見た目</label>
+          <select id="ghostSkinHome">
+            <option value="classic">いつものオバケ</option>
+            <option value="hat">🎩 ぼうし</option>
+            <option value="bow">🎀 リボン</option>
+            <option value="glasses">🕶️ サングラス</option>
+          </select>
+          <span id="ghostSkinPreview" class="ghost enemy preview" aria-label="選択したオバケの見た目" role="img">👻</span>
+          <p>赤と青の両方に同じ装飾が付きます。強さや正体には影響しません。設定は端末ごとです。</p>
+        </div>
         <label class="cpu-choice" for="cpuDifficulty"><strong>CPUの強さ</strong><select id="cpuDifficulty" class="cpu-level"><option value="easy">初級・気軽に</option><option value="normal" selected>中級・標準</option><option value="hard">上級・慎重に</option></select></label>
+        <label class="cpu-personality" for="cpuStyle"><strong>CPUの性格</strong><select id="cpuStyle">
+          <option value="balanced">⚖️ バランス型</option>
+          <option value="aggressive">🔥 攻撃型</option>
+          <option value="careful">🛡️ 慎重型</option>
+          <option value="tricky">🎭 だまし型</option>
+        </select></label>
+        <p id="cpuStyleNote" class="cpu-style-note">攻撃と脱出のバランスを取る、標準的な相手です。</p>
         <button type="button" id="soloStart" class="primary full">🤖 CPUと対戦する（1人用）</button>
         <p class="muted">1台のスマホでCPUと対戦。相手の駒の色は隠され、通信接続を待たずに遊べます。</p>
         <div class="separator">2人でオンライン対戦</div>
@@ -373,6 +435,14 @@
             </label>
             <label for="boardColor"><span>盤面カラー</span>
               <select id="boardColor"><option value="night">夜空</option><option value="forest">森</option><option value="warm">木目調</option><option value="contrast">くっきり</option></select>
+            </label>
+            <label for="ghostSkinGame"><span>👻 オバケの見た目</span>
+              <select id="ghostSkinGame">
+                <option value="classic">いつものオバケ</option>
+                <option value="hat">🎩 ぼうし</option>
+                <option value="bow">🎀 リボン</option>
+                <option value="glasses">🕶️ サングラス</option>
+              </select>
             </label>
             <label for="effectsMode"><span>動き・紙吹雪</span>
               <select id="effectsMode"><option value="on">あり</option><option value="off">控えめ</option></select>
@@ -579,6 +649,7 @@
       <h2 id="resultHeading" class="result-heading">勝利！</h2>
       <p id="resultTagline" class="result-tagline">オバケの勝負が決着！</p>
       <p id="resultReason" class="result-reason">対戦が終了しました</p>
+      <div id="resultStats" class="result-stats" aria-live="polite">成績を集計しています</div>
       <div class="rematch-prompt" id="rematchPrompt" aria-live="polite">👻 もう一戦しますか？</div>
       <div class="result-actions">
         <div class="rematch-buttons">
