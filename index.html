@@ -316,6 +316,10 @@
     .ghost.skin-hat::before{content:"🎩";font-size:.55em;top:-.38em;left:50%;transform:translateX(-50%) rotate(-8deg)}
     .ghost.skin-bow::before{content:"🎀";font-size:.48em;top:-.16em;right:-.24em;transform:rotate(13deg)}
     .ghost.skin-glasses::before{content:"🕶️";font-size:.60em;top:.17em;left:50%;transform:translateX(-50%)}
+    .prize-piece[class*="skin-"]::before{position:absolute;z-index:3;pointer-events:none;line-height:1}
+    .prize-piece.skin-hat::before{content:"🎩";font-size:13px;top:-8px;left:50%;transform:translateX(-50%) rotate(-8deg)}
+    .prize-piece.skin-bow::before{content:"🎀";font-size:12px;top:-5px;right:-4px}
+    .prize-piece.skin-glasses::before{content:"🕶️";font-size:13px;top:8px;left:50%;transform:translateX(-50%)}
     /* 39: CPUの強さとは別に性格を選ぶ */
     .cpu-personality{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 3px;font-size:14px}
     .cpu-personality select{width:min(58%,238px);min-width:145px;border:1px solid #7690a8;border-radius:9px;background:#15283b;color:#f0f7ff;min-height:40px;padding:7px;font-size:16px}
@@ -764,7 +768,9 @@
         const other=row.mode==='cpu'?'CPU（'+(CPU_STYLE_LABELS[row.style]||'標準')+'）':friend?friend.name:'オンライン';
         const date=new Date(row.time);
         const when=Number.isFinite(date.getTime())?(date.getMonth()+1)+'/'+date.getDate():'';
-        const type=row.type==='blue'?'青を4体':row.type==='red'?'赤を取らせた':row.type==='escape'?'脱出':'その他';
+        const type=row.type==='blue'?(row.win?'青4体を捕獲':'青4体を取られた'):
+          row.type==='red'?(row.win?'赤4体を取らせた':'相手の赤4体を捕獲'):
+          row.type==='escape'?(row.win?'脱出成功':'脱出された'):'その他';
         li.textContent=when+' '+(row.win?'🏆 勝利':'敗北')+' ／ '+other+' ／ '+type+' ／ '+row.moves+'手';
         root.append(li);
       }
@@ -1727,7 +1733,7 @@
       for(const [index,piece] of capturedPieces.entries()){
         const blue=piece.kind==='good',label=blue?'青':'赤';
         const token=document.createElement('span');
-        token.className='prize-piece '+(blue?'good':'bad');
+        token.className='prize-piece '+(blue?'good':'bad')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);
         token.textContent='👻';
         token.setAttribute('role','img');
         token.setAttribute('aria-label',(index+1)+'個目：'+label+'い駒');
