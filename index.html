@@ -1595,10 +1595,41 @@
           value+=(oldDist-newDist)*(kind==='bad'?9:5);
         }
         if(game.cpuLastMove?.id===m.id&&game.cpuLastMove.x===m.x&&game.cpuLastMove.y===m.y)value-=12;
+        // 性格ごとの思考傾向。参照するのはCPU自身の駒色と公開情報のみ。
+        // プレイヤー側の秘密の赤青を読んではならない。
+        const approaching=(x,y)=>Math.min(9,...humans.map(h=>manhattan(x,y,h.x,h.y)));
+        const towardHuman=approaching(p.x,p.y)-approaching(m.x,m.y);
+        const exposed=humans.filter(h=>h.id!==m.target?.id&&manhattan(h.x,h.y,m.x,m.y)===1).length;
+        if(cpuStyle==='aggressive'){
+          value+=towardHuman*7;
+          if(m.target)value+=35;
+          if(kind==='bad'&&exposed>0)value+=5;
+        }else if(cpuStyle==='careful'){
+          if(kind==='good'){
+            value+=(before-after)*12;
+            value-=exposed*21;
+            if(m.target)value-=10;
+          }else{
+            value-=exposed*6;
+          }
+          // 捕獲した赤が増えているほど、残りの正体不明の駒を取らない。
+          if(m.target)value-=game.captured[0].bad>=2?48:13;
+        }else if(cpuStyle==='tricky'){
+          if(kind==='bad'){
+            value+=towardHuman*17;
+            value+=exposed*20;
+            if(m.target)value-=10;
+          }else{
+            value+=(before-after)*6;
+            value-=exposed*20;
+          }
+          if(m.target)value-=game.captured[0].bad>=2?40:12;
+        }
         return value;
       }
       let chosen=moves[0],best=-Infinity;
-      if(cpuDifficulty==='easy'){
+      if(cpuDifficulty==='easy'&&Math.random()<.62){
+        // 初級はランダム性を多めに残し、残りの手で性格が表れる。
         chosen=moves[Math.floor(Math.random()*moves.length)];
       }else{
         for(const m of moves){
