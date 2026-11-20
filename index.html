@@ -343,6 +343,9 @@
     .initiative-face{background:#1d3048;border:1px solid #7999b7;border-radius:13px;padding:9px 5px;min-width:0}
     .initiative-face strong{display:block;font-size:11px;color:#d8eaf8}
     .initiative-face span{display:block;font-size:clamp(25px,7vw,41px);font-weight:900;min-height:52px;line-height:1.45;color:#fff3ca}
+    .initiative-faces.revealed .initiative-face span{animation:initiative-reveal .45s ease-out both}
+    .initiative-faces.revealed .initiative-face:nth-child(3) span{animation-delay:.18s}
+    @keyframes initiative-reveal{from{opacity:.1;transform:rotateY(80deg) scale(.7)}to{opacity:1;transform:rotateY(0) scale(1)}}
     .initiative-face small{display:block;font-size:11px;color:#b9d4e6}
     .initiative-versus{font-size:12px;font-weight:900;color:#ffda91}
     .initiative-panel button{width:100%;min-height:52px;font-size:17px;margin:5px 0}
@@ -508,7 +511,7 @@
           <section id="initiativePanel" class="initiative-panel hidden" aria-labelledby="initiativeTitle">
             <h3 id="initiativeTitle">🎲 先手決めゲーム</h3>
             <p id="initiativeDescription" class="initiative-description">大きい数字を出した人が先手になります。</p>
-            <div class="initiative-faces" aria-live="polite">
+            <div id="initiativeFaces" class="initiative-faces" aria-live="polite">
               <div class="initiative-face"><strong>あなた</strong><span id="initiativeMine">？</span><small id="initiativeMineNote">まだです</small></div>
               <span class="initiative-versus">VS</span>
               <div class="initiative-face"><strong id="initiativeOpponentName">相手</strong><span id="initiativeOpponent">？</span><small id="initiativeOpponentNote">まだです</small></div>
@@ -739,7 +742,7 @@
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
-    let captureIntro=null,captureIntroTimer=null;
+    let captureIntro=null,captureIntroTimer=null,firstRevealTimer=null,firstRevealRound=null;
     const REACTION_EMOJIS=['😆','😮','👏','👻'],PREF_KEY='ghostDuelPrefsV1',SAVE_KEY='ghostDuelSaveV1';
     const FRIEND_KEY='ghostDuelFriendListV1',IDENTITY_KEY='ghostDuelFriendIdV1',NAME_KEY='ghostDuelFriendNameV1';
     const STATS_KEY='ghostDuelStatsV1';
@@ -833,6 +836,18 @@
     function validDraw(method,v){
       return Number.isInteger(v)&&v>=0&&(method==='dice'?v>=1&&v<=6:method==='card'?v<52:false);
     }
+    function showFirstReveal(){
+      return !!game&&game.phase==='setup'&&firstRevealRound===game.round&&firstRevealTimer!==null;
+    }
+    function clearFirstReveal(){
+      if(firstRevealTimer!==null){clearTimeout(firstRevealTimer);firstRevealTimer=null;}
+      firstRevealRound=null;
+    }
+    function finishFirstReveal(){
+      if(firstRevealTimer===null)return;
+      clearFirstReveal();
+      render();
+    }
     function resolveFirstDraw(){
       if(!game||game.phase!=='initiative')return;
       const init=game.initiative,values=init.values;
@@ -852,12 +867,15 @@
       game.startDescription=FIRST_MODE_LABELS[game.match.method]+'：P1 '+face0
         +' ／ P2 '+face1+' → P'+(game.starter+1)+'が先手！';
       history(game.startDescription);
+      firstRevealRound=game.round;
+      firstRevealTimer=setTimeout(finishFirstReveal,effectsMode==='off'?800:1900);
       render();
     }
     function randomDrawValue(){
       return game.match.method==='dice'?secureRandomBelow(6)+1:secureRandomBelow(52);
     }
     function submitFirstDraw(){
+      if(showFirstReveal()){finishFirstReveal();return;}
       if(!game||game.phase!=='initiative'||!connected||game.initiative.values[role]!==null)return;
       const init=game.initiative,attempt=init.attempt,value=randomDrawValue();
       if(!solo&&!send({t:'initiative-draw',round:game.round,attempt,value}))return;
@@ -883,26 +901,30 @@
       $('seriesScoreLabel').textContent=best?'🏆 3本勝負 第'+roundIndex+'戦':'🎮 1試合モード';
       $('seriesScoreNumbers').textContent=m.scores[role]+'勝 – '+m.scores[1-role]+'勝';
       $('seriesScoreHint').textContent=best?'2勝先取':'先手の決め方：'+(FIRST_MODE_LABELS[m.method]||'くじ');
-      const first=game.phase==='initiative';
+      const revealing=showFirstReveal(),first=game.phase==='initiative'||revealing;
       $('initiativePanel').classList.toggle('hidden',!first);
       $('starterBanner').classList.toggle('hidden',first||!game.startDescription);
+      $('initiativeFaces').classList.toggle('revealed',revealing);
       $('starterBanner').textContent=(game.startDescription||'')+
         (game.starter===role?'　✅ あなたが先手！':'　▶ 相手が先手！');
       if(first){
         const init=game.initiative,method=m.method;
         const isDice=method==='dice';
-        $('initiativeTitle').textContent=isDice?'🎲 サイコロ勝負！':'🃏 トランプ対決！';
-        $('initiativeDescription').textContent=FIRST_MODE_HELP[method];
+        $('initiativeTitle').textContent=revealing?'🏆 先手が決定！':isDice?'🎲 サイコロ勝負！':'🃏 トランプ対決！';
+        $('initiativeDescription').textContent=revealing?'結果が出ました！ 先手になったプレイヤーが最初に動かします。':FIRST_MODE_HELP[method];
         $('initiativeOpponentName').textContent=solo?'CPU':'相手';
         const mine=init.values[role],other=init.values[1-role];
-        $('initiativeMine').textContent=mine===null?'？':'✓';
-        $('initiativeOpponent').textContent=other===null?'？':'✓';
+        $('initiativeMine').textContent=revealing?drawFace(method,mine):mine===null?'？':'✓';
+        $('initiativeOpponent').textContent=revealing?drawFace(method,other):other===null?'？':'✓';
         $('initiativeMineNote').textContent=mine===null?'まだです':'引きました！';
         $('initiativeOpponentNote').textContent=other===null?'まだです':'引きました！';
-        $('initiativeDraw').disabled=mine!==null||!connected;
-        $('initiativeDraw').textContent=mine!==null?'✅ 参加済み・結果待ち':
+        $('initiativeDraw').disabled=!connected||(!revealing&&mine!==null);
+        $('initiativeDraw').textContent=revealing?'▶ 初期配置に進む':
+          mine!==null?'✅ 参加済み・結果待ち':
           isDice?'🎲 サイコロを振る！':'🃏 カードを引く！';
-        $('initiativeMessage').textContent=init.note||(
+        $('initiativeMessage').textContent=revealing?
+          (game.starter===role?'🎉 あなたが先手！':'▶ 相手が先手です！'):
+          init.note||(
           mine!==null?'相手が引くのを待っています…':
           other!==null?'相手は準備できました。あなたも引こう！':'ボタンを押して勝負！');
       }
@@ -1605,7 +1627,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ clearAutoSave();resetRematch();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
+    function teardown(){ clearAutoSave();resetRematch();clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL()); }
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -1658,7 +1680,7 @@
     function startRound(n,options=null){
       const settings=options||makeRoundSettings(nextMatchSettings());
       if(!validRoundSettings(settings))return gameError('先手決定の設定が正しくありません。');
-      resetRematch();cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
+      resetRematch();clearFirstReveal();cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
         starter:settings.starter,
         match:{format:settings.format,method:settings.method,scores:settings.scores.slice(),
           played:settings.played,previousStarter:settings.previousStarter,completed:false},
@@ -2006,7 +2028,7 @@
       network.textContent=solo?'🤖 CPU対戦中':game.phase==='disconnected'?(connected?'🟡 盤面照合中':'🔴 接続が切れました'):connected?'🟢 オンライン接続中':'🔴 切断';
       network.classList.toggle('offline',!connected||game.phase==='disconnected');
       $('gameReconnect').classList.toggle('hidden',solo||game.phase!=='disconnected');
-      $('setupPresets').classList.toggle('hidden',game.phase!=='setup'||game.ready[role]);
+      $('setupPresets').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal()||game.ready[role]);
       $('reactionBar').classList.toggle('hidden',solo||game.phase!=='playing');
       for(const node of $('reactionBar').querySelectorAll('button[data-reaction]'))node.disabled=!connected||game.phase!=='playing';
       updateMatchPresentation();
@@ -2017,7 +2039,7 @@
       renderReview();
 $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'CPU・'+CPU_STYLE_LABELS[cpuStyle]:'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='initiative'?'🎲 先手を決めよう！':game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
-      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
+      const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('ready').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
       if(game.phase==='initiative'){
         $('gameHint').textContent='先手決めゲームで勝った側が、この試合の1手目を動かせます。';
         $('moveMessage').textContent='先手を決めてから初期配置を始めます。';
@@ -2036,7 +2058,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       }else if(cueMove){
         cue.textContent='🎯 '+capturePositionText(cueMove.x,cueMove.y)+'の相手の駒を捕獲中…正体を確認しています';
       }
-      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
+      const board=$('board');board.classList.toggle('hidden',game.phase==='initiative'||showFirstReveal());board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
         if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
       }
