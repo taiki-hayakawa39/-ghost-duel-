@@ -342,9 +342,9 @@
     .initiative-faces{display:grid;grid-template-columns:1fr 24px 1fr;gap:7px;align-items:center;margin:13px 0}
     .initiative-face{background:#1d3048;border:1px solid #7999b7;border-radius:13px;padding:9px 5px;min-width:0}
     .initiative-face strong{display:block;font-size:11px;color:#d8eaf8}
-    .initiative-face span{display:block;font-size:clamp(25px,7vw,41px);font-weight:900;min-height:52px;line-height:1.45;color:#fff3ca}
-    .initiative-faces.revealed .initiative-face span{animation:initiative-reveal .45s ease-out both}
-    .initiative-faces.revealed .initiative-face:nth-child(3) span{animation-delay:.18s}
+    .initiative-face > span{display:block;font-size:clamp(25px,7vw,41px);font-weight:900;min-height:52px;line-height:1.45;color:#fff3ca}
+    .initiative-faces.revealed .initiative-face > span{animation:initiative-reveal .45s ease-out both}
+    .initiative-faces.revealed .initiative-face:nth-child(3) > span{animation-delay:.18s}
     @keyframes initiative-reveal{from{opacity:.1;transform:rotateY(80deg) scale(.7)}to{opacity:1;transform:rotateY(0) scale(1)}}
     .initiative-face small{display:block;font-size:11px;color:#b9d4e6}
     .initiative-versus{font-size:12px;font-weight:900;color:#ffda91}
@@ -356,6 +356,83 @@
     body.game-active .initiative-panel{margin-top:7px}
     @media(max-width:360px){.match-choice-row{flex-wrap:wrap}.match-choice-row select{max-width:none;width:100%;flex-basis:100%}}
     @media(prefers-reduced-motion:reduce){.initiative-faces *{animation:none!important}}
+
+    /* チンチロ風：サイコロが壺に投げ込まれ、シェイクしてからカップが持ち上がる */
+    .initiative-faces.dice-mode{gap:5px;grid-template-columns:minmax(0,1fr) 21px minmax(0,1fr)}
+    .initiative-faces.dice-mode .initiative-face{padding:10px 3px 9px;overflow:hidden;background:linear-gradient(160deg,#274461,#14273b)}
+    .initiative-faces.dice-mode .initiative-face > span{display:none!important}
+    .dice-stage{position:relative;isolation:isolate;display:none;max-width:160px;margin:0 auto;height:140px;overflow:hidden;border-radius:10px;
+      background:radial-gradient(ellipse at 48% 91%,#2d765b 0%,#1b574c 50%,#103e40 82%);
+      border:1px solid #477b77;perspective:350px}
+    .initiative-faces.dice-mode .dice-stage{display:block}
+    .dice-stage::before{content:"";position:absolute;inset:auto 8% 9px;height:13px;border-radius:50%;background:#092c29a8;filter:blur(4px);z-index:0}
+    .dice-tray{position:absolute;bottom:11px;left:8%;width:84%;height:30px;border:3px solid #c49d62;border-radius:50%;background:#235642;
+      box-shadow:inset 0 3px 9px #051d24ac,0 5px 6px #0a243d91;z-index:1}
+    .dice-die{--dot:#243b51;position:absolute;z-index:3;bottom:28px;left:50%;width:49px;height:49px;
+      transform:translateX(-50%) rotate(-14deg) scale(.93);background:linear-gradient(130deg,#fff,#f7f0dc 72%,#cbd4d8);
+      border:1px solid #fff;border-radius:10px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+      gap:3px;padding:9px;box-shadow:inset -3px -5px 4px #9cabbc66,0 6px 8px #082328aa;opacity:0}
+    .dice-die i{display:block;align-self:center;justify-self:center;width:7px;height:7px;border-radius:50%;background:var(--dot);opacity:0;box-shadow:inset 0 1px 1px #0f1a2b64}
+    .dice-die.face-1 i:nth-child(5),
+    .dice-die.face-2 i:nth-child(1),.dice-die.face-2 i:nth-child(9),
+    .dice-die.face-3 i:nth-child(1),.dice-die.face-3 i:nth-child(5),.dice-die.face-3 i:nth-child(9),
+    .dice-die.face-4 i:nth-child(1),.dice-die.face-4 i:nth-child(3),.dice-die.face-4 i:nth-child(7),.dice-die.face-4 i:nth-child(9),
+    .dice-die.face-5 i:nth-child(1),.dice-die.face-5 i:nth-child(3),.dice-die.face-5 i:nth-child(5),.dice-die.face-5 i:nth-child(7),.dice-die.face-5 i:nth-child(9),
+    .dice-die.face-6 i:nth-child(1),.dice-die.face-6 i:nth-child(3),.dice-die.face-6 i:nth-child(4),.dice-die.face-6 i:nth-child(6),.dice-die.face-6 i:nth-child(7),.dice-die.face-6 i:nth-child(9){opacity:1}
+    .dice-cup{position:absolute;z-index:5;width:79px;height:76px;left:50%;bottom:19px;transform:translateX(-50%);transform-origin:50% 85%;
+      border-radius:39% 39% 30% 30% / 30% 30% 12% 12%;background:linear-gradient(95deg,#55321d,#916139 28%,#be8951 48%,#91623c 77%,#52331f);
+      border:2px solid #dcaa68;box-shadow:inset -10px -4px 14px #3a251b94,inset 5px 1px 12px #f2c28a7b,0 11px 13px #091c2cab}
+    .dice-cup:before{content:"";position:absolute;top:-2px;left:4px;right:4px;height:12px;
+      border-radius:50%;border:2px solid #e7b97e;background:radial-gradient(ellipse,#39281c 25%,#704729 68%,#b98650)}
+    .dice-cup:after{content:"";position:absolute;bottom:-5px;left:-7px;right:-7px;height:13px;border-radius:50%;border:3px solid #c28e55;
+      background:linear-gradient(120deg,#543821,#d2a06a 56%,#79512d);box-shadow:0 4px 6px #08252ba6}
+    .dice-toss{position:absolute;z-index:7;top:8px;right:3px;font-size:34px;opacity:0;pointer-events:none;text-shadow:0 3px 3px #092839}
+    .dice-sound{position:absolute;z-index:8;top:10px;left:0;right:0;font-size:12px;font-weight:900;color:#ffe2a7;opacity:0}
+    .dice-stage.rolling .dice-toss{animation:chinchiro-toss .72s ease-out both}
+    .dice-stage.rolling .dice-cup{animation:chinchiro-shake .28s ease-in-out .55s infinite alternate}
+    .dice-stage.rolling .dice-sound{animation:chinchiro-sound 1s ease-in-out .4s infinite}
+    .dice-stage.revealed .dice-cup{animation:chinchiro-lift .85s cubic-bezier(.2,.8,.2,1) forwards}
+    .dice-stage.revealed .dice-die{animation:chinchiro-land .7s cubic-bezier(.22,1.4,.45,1) .12s both}
+    .dice-stage.revealed .dice-sound{opacity:1}
+    .dice-stage.revealed .dice-sound:after{content:"パカッ！";background:#225347b3;border-radius:20px;padding:2px 9px}
+    .dice-stage.waiting .dice-cup{filter:saturate(.65);opacity:.86}
+    .initiative-faces.dice-mode .initiative-versus{align-self:center}
+    @keyframes chinchiro-toss{
+      0%{opacity:0;transform:translate(24px,-20px) rotate(-120deg) scale(.35)}
+      22%{opacity:1}
+      67%{opacity:1;transform:translate(-38px,76px) rotate(380deg) scale(.7)}
+      100%{opacity:0;transform:translate(-56px,112px) rotate(640deg) scale(.25)}
+    }
+    @keyframes chinchiro-shake{
+      from{transform:translateX(-50%) rotate(-12deg) translate(-5px,2px)}
+      to{transform:translateX(-50%) rotate(11deg) translate(5px,-4px)}
+    }
+    @keyframes chinchiro-sound{0%,100%{opacity:0}40%,65%{opacity:1}}
+    @keyframes chinchiro-lift{
+      0%{transform:translateX(-50%) translateY(0) rotate(-10deg);opacity:1}
+      60%{transform:translateX(-50%) translateY(-64px) rotate(-18deg);opacity:1}
+      100%{transform:translateX(-50%) translateY(-98px) rotate(-22deg);opacity:.55}
+    }
+    @keyframes chinchiro-land{
+      0%{opacity:0;transform:translateX(-50%) translate(6px,-15px) rotate(320deg) scale(.7)}
+      68%{opacity:1;transform:translateX(-50%) translate(0,7px) rotate(-22deg) scale(1.08)}
+      100%{opacity:1;transform:translateX(-50%) rotate(-14deg) scale(.93)}
+    }
+    @media(prefers-reduced-motion:reduce){
+      .dice-stage *{animation:none!important}
+      .dice-stage.revealed .dice-cup{transform:translateX(-50%) translateY(-98px);opacity:.4}
+      .dice-stage.revealed .dice-die{opacity:1}
+      .dice-stage.rolling .dice-sound{opacity:1}
+      .dice-stage.rolling .dice-sound:after{content:"振っています…"}
+    }
+    body.effects-off .dice-stage *{animation:none!important}
+    body.effects-off .dice-stage.revealed .dice-cup{transform:translateX(-50%) translateY(-98px);opacity:.4}
+    body.effects-off .dice-stage.revealed .dice-die{opacity:1}
+    body.effects-off .dice-stage.rolling .dice-sound{opacity:1}
+    body.effects-off .dice-stage.rolling .dice-sound:after{content:"振っています…"}
+    @media(max-width:360px){.initiative-faces.dice-mode{gap:3px}.dice-stage{height:125px}
+      .dice-cup{width:67px;height:67px}.dice-die{width:44px;height:44px;padding:8px}
+      .dice-stage .dice-die i{width:6px;height:6px}}
   </style>
 </head>
 <body>
@@ -512,9 +589,17 @@
             <h3 id="initiativeTitle">🎲 先手決めゲーム</h3>
             <p id="initiativeDescription" class="initiative-description">大きい数字を出した人が先手になります。</p>
             <div id="initiativeFaces" class="initiative-faces" aria-live="polite">
-              <div class="initiative-face"><strong>あなた</strong><span id="initiativeMine">？</span><small id="initiativeMineNote">まだです</small></div>
+              <div class="initiative-face"><strong>あなた</strong><div id="diceMineStage" class="dice-stage waiting" role="img" aria-label="サイコロを振る準備ができています">
+ <div class="dice-tray" aria-hidden="true"></div>
+ <div id="diceMineDie" class="dice-die face-1" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+ <div class="dice-cup" aria-hidden="true"></div><div class="dice-toss" aria-hidden="true">🎲</div>
+ <div class="dice-sound" aria-hidden="true"></div></div><span id="initiativeMine">？</span><small id="initiativeMineNote">まだです</small></div>
               <span class="initiative-versus">VS</span>
-              <div class="initiative-face"><strong id="initiativeOpponentName">相手</strong><span id="initiativeOpponent">？</span><small id="initiativeOpponentNote">まだです</small></div>
+              <div class="initiative-face"><strong id="initiativeOpponentName">相手</strong><div id="diceOpponentStage" class="dice-stage waiting" role="img" aria-label="サイコロを振る準備ができています">
+ <div class="dice-tray" aria-hidden="true"></div>
+ <div id="diceOpponentDie" class="dice-die face-1" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+ <div class="dice-cup" aria-hidden="true"></div><div class="dice-toss" aria-hidden="true">🎲</div>
+ <div class="dice-sound" aria-hidden="true"></div></div><span id="initiativeOpponent">？</span><small id="initiativeOpponentNote">まだです</small></div>
             </div>
             <button id="initiativeDraw" type="button" class="primary">🎲 サイコロを振る！</button>
             <p id="initiativeMessage" class="initiative-message" role="status" aria-live="polite">あなたの番です</p>
