@@ -472,6 +472,7 @@
     .cell.scout-target .ghost{animation:scout-target-breathe .95s ease-in-out infinite}
     @keyframes scout-target-breathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.27)}}
     .ghost.scout-known{outline:3px solid #d7aafa;outline-offset:-1px}
+    .ghost.facing-away .mark{transform:rotate(180deg)}
     .mark.intel-good{background:#196e99;min-width:22px;width:auto;font-size:11px}
     .mark.intel-bad{background:#a33f60;min-width:22px;width:auto;font-size:11px}
     .scout-report{margin:10px 0;padding:11px;border:2px solid #c4a0f5;border-radius:12px;background:#342c59;color:#f9efff;display:flex;align-items:center;justify-content:space-between;gap:9px}
@@ -932,6 +933,7 @@
 
 
     // 新しいゲームモードはこの一覧に追加する（勝負形式・先手決めとは別）。
+    const GAME_MODE_PREF='ghostDuelSelectedModeV1';
     const GAME_MODES={
       classic:{label:'👻 クラシック',description:'基本ルールの心理戦。特殊能力なし。',
         rules:'青4体を取る・赤4体を取らせる・青で脱出、のいずれかで勝利。'},
@@ -960,6 +962,21 @@
       $('gameModeTitle').textContent=mode.label;
       $('gameModeDescription').textContent=mode.description;
       $('gameModeRules').textContent=mode.rules;
+      try{localStorage.setItem(GAME_MODE_PREF,$('gameMode').value);}catch{}
+    }
+    function initializeGameModeMenu(){
+      // 以降の追加ルールはGAME_MODESだけ増やせばメニューに自動反映される。
+      const select=$('gameMode');
+      let saved=null;
+      try{saved=localStorage.getItem(GAME_MODE_PREF);}catch{}
+      const chosen=Object.prototype.hasOwnProperty.call(GAME_MODES,saved)?saved:'classic';
+      select.replaceChildren();
+      for(const [key,mode] of Object.entries(GAME_MODES)){
+        const option=document.createElement('option');
+        option.value=key;option.textContent=mode.label;
+        select.append(option);
+      }
+      select.value=chosen;setGameModeDescription();
     }
     function matchPreferences(){
       return {format:SERIES_FORMATS.includes($('seriesFormat').value)?$('seriesFormat').value:'single',
@@ -2220,7 +2237,7 @@
         startRound(m.next,received);return;
       }
     }
-    // CPUは相手の駒の色を参照せず、公開された盤面と取得状況だけから手を選ぶ。
+    // CPUは偵察前に人間の秘密色を参照せず、偵察後は得た情報だけを使用する。
     function queueCpu(delay=500){
       if(!solo||!game||game.phase!=='playing'||game.turn!==1||cpuTimer!==null)return;
       const round=game.round,seq=game.seq;
@@ -2586,7 +2603,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('firstMode').addEventListener('change',updateFirstModeDescription);
     updateFirstModeDescription();
     $('gameMode').addEventListener('change',setGameModeDescription);
-    setGameModeDescription();
+    initializeGameModeMenu();
     $('resultInspect').addEventListener('click',()=>{
       hideResult();
       $('board').scrollIntoView({behavior:'smooth',block:'nearest'});
