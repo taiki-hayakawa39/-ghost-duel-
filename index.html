@@ -762,6 +762,169 @@
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
 
 
+
+    const FIRST_MODES=['dice','card','alternate','random'],SERIES_FORMATS=['single','best3'];
+    const FIRST_MODE_LABELS={dice:'🎲 サイコロ',card:'🃏 トランプ',alternate:'🔄 交互',random:'🍀 おまかせ'};
+    const FIRST_MODE_HELP={
+      dice:'自分と相手が1回ずつサイコロを振ります。大きい目が先手。同じ目なら振り直し。',
+      card:'自分と相手がトランプを1枚ずつ引きます。数字は2〜10・J・Q・K・A（Aが最大）。同じ数字なら引き直し。',
+      alternate:'最初はP1が先手。2試合目以降は先手・後手を交代します。',
+      random:'くじ引きで先手を自動決定。双方に結果が表示されます。'
+    };
+    function secureRandomBelow(n){
+      if(!Number.isInteger(n)||n<2||n>256)throw Error('random range');
+      const a=new Uint8Array(1),limit=Math.floor(256/n)*n;
+      do{crypto.getRandomValues(a);}while(a[0]>=limit);
+      return a[0]%n;
+    }
+    function updateFirstModeDescription(){
+      $('firstModeDescription').textContent=FIRST_MODE_HELP[$('firstMode').value]||FIRST_MODE_HELP.dice;
+    }
+    function matchPreferences(){
+      return {format:SERIES_FORMATS.includes($('seriesFormat').value)?$('seriesFormat').value:'single',
+        method:FIRST_MODES.includes($('firstMode').value)?$('firstMode').value:'dice',
+        scores:[0,0],played:0,previousStarter:null};
+    }
+    function nextMatchSettings(){
+      const m=game?.match;
+      if(!m)return matchPreferences();
+      return {format:m.format,method:m.method,
+        scores:m.completed?[0,0]:m.scores.slice(),played:m.completed?0:m.played,
+        previousStarter:m.previousStarter};
+    }
+    function makeRoundSettings(seed){
+      const s=seed||matchPreferences();
+      const format=SERIES_FORMATS.includes(s.format)?s.format:'single';
+      const method=FIRST_MODES.includes(s.method)?s.method:'dice';
+      const played=Number.isInteger(s.played)&&s.played>=0&&s.played<=2?s.played:0;
+      const scores=Array.isArray(s.scores)&&s.scores.length===2
+        ?s.scores.map(v=>Number.isInteger(v)&&v>=0&&v<=2?v:0):[0,0];
+      const previousStarter=[0,1].includes(s.previousStarter)?s.previousStarter:null;
+      const starter=method==='alternate'?(previousStarter===null?0:1-previousStarter)
+        :method==='random'?secureRandomBelow(2):null;
+      return {format,method,scores,played,previousStarter,starter};
+    }
+    function validRoundSettings(s){
+      if(!s||typeof s!=='object'||!SERIES_FORMATS.includes(s.format)
+         ||!FIRST_MODES.includes(s.method)
+         ||!Array.isArray(s.scores)||s.scores.length!==2
+         ||!s.scores.every(x=>Number.isInteger(x)&&x>=0&&x<=2)
+         ||!Number.isInteger(s.played)||s.played<0||s.played>2
+         ||(s.previousStarter!==null&&s.previousStarter!==0&&s.previousStarter!==1)
+         ||(![null,0,1].includes(s.starter)))return false;
+      if(s.format==='single'&&(s.played!==0||s.scores.some(Boolean)))return false;
+      if(s.format==='best3'&&(s.scores[0]+s.scores[1]!==s.played||s.scores.some(x=>x>=2)))return false;
+      if(['dice','card'].includes(s.method)&&s.starter!==null)return false;
+      if(s.method==='alternate'&&s.starter!==(s.previousStarter===null?0:1-s.previousStarter))return false;
+      if(s.method==='random'&&!Number.isInteger(s.starter))return false;
+      return true;
+    }
+    function drawStrength(method,v){return method==='card'?v%13+2:v;}
+    function drawFace(method,v){
+      if(!Number.isInteger(v))return '？';
+      if(method==='dice')return '🎲 '+v;
+      if(method==='card'){
+        const ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+        const suits=['♠','♥','♦','♣'];
+        return suits[Math.floor(v/13)]+ranks[v%13];
+      }
+      return String(v);
+    }
+    function validDraw(method,v){
+      return Number.isInteger(v)&&v>=0&&(method==='dice'?v>=1&&v<=6:method==='card'?v<52:false);
+    }
+    function resolveFirstDraw(){
+      if(!game||game.phase!=='initiative')return;
+      const init=game.initiative,values=init.values;
+      if(values.some(x=>x===null))return;
+      const a=drawStrength(game.match.method,values[0]),b=drawStrength(game.match.method,values[1]);
+      if(a===b){
+        init.note='🎲 同じ大きさ（'+a+'）！ 引き分けです。もう一度！';
+        init.attempt++;init.values=[null,null];
+        if(solo)init.values[1]=randomDrawValue();
+        render();
+        return;
+      }
+      game.starter=a>b?0:1;
+      game.phase='setup';
+      const face0=drawFace(game.match.method,values[0]);
+      const face1=drawFace(game.match.method,values[1]);
+      game.startDescription=FIRST_MODE_LABELS[game.match.method]+'：P1 '+face0
+        +' ／ P2 '+face1+' → P'+(game.starter+1)+'が先手！';
+      history(game.startDescription);
+      render();
+    }
+    function randomDrawValue(){
+      return game.match.method==='dice'?secureRandomBelow(6)+1:secureRandomBelow(52);
+    }
+    function submitFirstDraw(){
+      if(!game||game.phase!=='initiative'||!connected||game.initiative.values[role]!==null)return;
+      const init=game.initiative,attempt=init.attempt,value=randomDrawValue();
+      if(!solo&&!send({t:'initiative-draw',round:game.round,attempt,value}))return;
+      init.values[role]=value;
+      init.note='自分の結果を伏せて保存しました。相手の結果を待っています。';
+      resolveFirstDraw();
+      render();
+    }
+    function handleFirstDraw(m){
+      if(!game||solo||game.phase!=='initiative'||!connected)return;
+      const init=game.initiative;
+      if(m.attempt!==init.attempt||init.values[1-role]!==null||!validDraw(game.match.method,m.value))return;
+      init.values[1-role]=m.value;
+      init.note='相手が引きました。あなたもボタンを押して勝負！';
+      resolveFirstDraw();
+      render();
+    }
+    function updateMatchPresentation(){
+      if(!game)return;
+      const m=game.match||{format:'single',method:'alternate',scores:[0,0],played:0,completed:false};
+      const best=m.format==='best3';
+      const roundIndex=game.phase==='finished'?m.played:m.played+1;
+      $('seriesScoreLabel').textContent=best?'🏆 3本勝負 第'+roundIndex+'戦':'🎮 1試合モード';
+      $('seriesScoreNumbers').textContent=m.scores[role]+'勝 – '+m.scores[1-role]+'勝';
+      $('seriesScoreHint').textContent=best?'2勝先取':'先手の決め方：'+(FIRST_MODE_LABELS[m.method]||'くじ');
+      const first=game.phase==='initiative';
+      $('initiativePanel').classList.toggle('hidden',!first);
+      $('starterBanner').classList.toggle('hidden',first||!game.startDescription);
+      $('starterBanner').textContent=(game.startDescription||'')+
+        (game.starter===role?'　✅ あなたが先手！':'　▶ 相手が先手！');
+      if(first){
+        const init=game.initiative,method=m.method;
+        const isDice=method==='dice';
+        $('initiativeTitle').textContent=isDice?'🎲 サイコロ勝負！':'🃏 トランプ対決！';
+        $('initiativeDescription').textContent=FIRST_MODE_HELP[method];
+        $('initiativeOpponentName').textContent=solo?'CPU':'相手';
+        const mine=init.values[role],other=init.values[1-role];
+        $('initiativeMine').textContent=mine===null?'？':'✓';
+        $('initiativeOpponent').textContent=other===null?'？':'✓';
+        $('initiativeMineNote').textContent=mine===null?'まだです':'引きました！';
+        $('initiativeOpponentNote').textContent=other===null?'まだです':'引きました！';
+        $('initiativeDraw').disabled=mine!==null||!connected;
+        $('initiativeDraw').textContent=mine!==null?'✅ 参加済み・結果待ち':
+          isDice?'🎲 サイコロを振る！':'🃏 カードを引く！';
+        $('initiativeMessage').textContent=init.note||(
+          mine!==null?'相手が引くのを待っています…':
+          other!==null?'相手は準備できました。あなたも引こう！':'ボタンを押して勝負！');
+      }
+    }
+    function updateSeriesAfterResult(winner){
+      if(!game||!game.match||game.seriesRecorded)return;
+      const m=game.match;
+      game.seriesRecorded=true;
+      m.scores[winner]++;
+      m.played++;
+      m.previousStarter=game.starter;
+      m.completed=m.format==='single'||m.scores.some(x=>x>=2);
+    }
+    function renderSeriesResult(){
+      const m=game?.match,panel=$('resultSeries');
+      panel.classList.toggle('hidden',!m||m.format!=='best3');
+      if(!m||m.format!=='best3')return;
+      const yours=m.scores[role],theirs=m.scores[1-role];
+      const end=m.completed;
+      panel.textContent='🏆 3本勝負 '+yours+'勝 – '+theirs+'勝　'+
+        (end?(yours>theirs?'🎉 シリーズ優勝！':'シリーズ敗北…'):'次は第'+(m.played+1)+'戦！');
+    }
     function emptyStats(){
       return {v:1,games:0,wins:0,losses:0,streak:0,bestStreak:0,
         byMode:{cpu:{games:0,wins:0},online:{games:0,wins:0}},
