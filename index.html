@@ -994,6 +994,7 @@
         const bothValues=values.slice();
         init.note=(game.match.method==='dice'?'🎲 同じ目':'🃏 同じ数字')+'（'+a+'）！ 引き分けです。もう一度！';
         init.attempt++;init.values=[null,null];
+        init.skipVotes=[false,false];
         if(solo)init.values[1]=randomDrawValue();
         if(game.match.method==='dice')startDiceShowcase(bothValues);
         render();
@@ -1039,6 +1040,41 @@
       resolveFirstDraw();
       render();
     }
+    function skipDiceAnimation(){
+      if(!game||game.match?.method!=='dice'||!showFirstReveal())return;
+      // 演出だけを飛ばす。サイコロの結果や先手は変えない。
+      finishFirstReveal();
+    }
+    function applyDiceSkipStarter(starter){
+      if(!game||game.phase!=='initiative'||game.match?.method!=='dice'
+        ||![0,1].includes(starter))return;
+      clearFirstReveal();
+      game.starter=starter;
+      game.phase='setup';
+      game.startDescription='🍀 サイコロ勝負をスキップ。自動抽選で P'+(starter+1)+'が先手に決定！';
+      history(game.startDescription);
+      render();
+    }
+    function maybeDecideDiceSkip(){
+      if(solo||!game||role!==0||!connected||game.phase!=='initiative'
+        ||game.match?.method!=='dice'||!game.initiative.skipVotes?.every(Boolean))return;
+      const starter=secureRandomBelow(2),attempt=game.initiative.attempt;
+      if(!send({t:'initiative-skip-result',round:game.round,attempt,starter}))return;
+      applyDiceSkipStarter(starter);
+    }
+    function voteDiceSkip(){
+      if(!game||!connected||game.phase!=='initiative'
+        ||game.match?.method!=='dice'||showFirstReveal())return;
+      const init=game.initiative;
+      if(init.skipVotes?.[role])return;
+      if(solo){applyDiceSkipStarter(secureRandomBelow(2));return;}
+      if(!send({t:'initiative-skip-vote',round:game.round,attempt:init.attempt}))return;
+      if(!Array.isArray(init.skipVotes))init.skipVotes=[false,false];
+      init.skipVotes[role]=true;
+      init.note='🎲 サイコロ勝負をスキップ希望。相手の同意を待っています。';
+      maybeDecideDiceSkip();
+      render();
+    }
     function updateMatchPresentation(){
       if(!game)return;
       const m=game.match||{format:'single',method:'alternate',scores:[0,0],played:0,completed:false};
@@ -1054,6 +1090,20 @@
       $('starterBanner').textContent=(game.startDescription||'')+
         (game.starter===role?'　✅ あなたが先手！':'　▶ 相手が先手！');
       $('initiativeFaces').classList.toggle('dice-mode',first&&m.method==='dice');
+      const diceFirst=first&&m.method==='dice';
+      $('initiativeSkipAnimation').classList.toggle('hidden',!(diceFirst&&revealing));
+      $('initiativeSkipDice').classList.toggle('hidden',!(diceFirst&&!revealing));
+      $('initiativeSkipHint').classList.toggle('hidden',!(diceFirst&&!revealing));
+      if(diceFirst&&!revealing){
+        const votes=game.initiative?.skipVotes||[false,false];
+        $('initiativeSkipDice').disabled=!connected||votes[role];
+        $('initiativeSkipDice').textContent=votes[role]?'⌛ 相手の同意待ち':
+          votes[1-role]&&!solo?'🍀 相手のスキップ希望に同意':'🍀 サイコロ勝負をスキップ（自動抽選）';
+        $('initiativeSkipHint').textContent=solo?'CPU戦では抽選で即座に先手を決めます。':
+          votes[role]?'相手が同意すれば、自動抽選に進みます。':
+          votes[1-role]?'相手がスキップを希望しています。押すと抽選で決めます。':
+          'オンラインでは双方が選んだ場合のみ、サイコロ勝負を省略します。';
+      }
       if(first){
         const init=game.initiative,method=m.method,isDice=method==='dice';
         const tied=!!(revealing&&diceTieDisplay),stage=diceRevealStage;
@@ -1849,7 +1899,7 @@
         starter:settings.starter,
         match:{format:settings.format,method:settings.method,scores:settings.scores.slice(),
           played:settings.played,previousStarter:settings.previousStarter,completed:false},
-        initiative:{attempt:1,values:[null,null],note:''},
+        initiative:{attempt:1,values:[null,null],skipVotes:[false,false],note:''},
         startDescription:settings.starter===null?'':FIRST_MODE_LABELS[settings.method]
           +'で P'+(settings.starter+1)+'が先手に決定！',
         pieces:[],mySecrets:{},commitments:[null,null],ready:[false,false],turn:settings.starter??0,seq:0,captured:[{good:0,bad:0},{good:0,bad:0}],hands:[[],[]],history:[],winner:null,winType:null,reason:'',opponentRevealed:{},opponentVerified:false,lastMove:null,moves:[]};selection=null;movePending=null;finishing=false;
@@ -1945,6 +1995,21 @@
       }
       if(!game||m.round!==game.round)return;
       if(m.t==='initiative-draw'){handleFirstDraw(m);return;}
+      if(m.t==='initiative-skip-vote'&&game.phase==='initiative'&&!solo&&game.match?.method==='dice'){
+        const init=game.initiative;
+        if(m.attempt!==init.attempt||init.skipVotes?.[1-role])return;
+        if(!Array.isArray(init.skipVotes))init.skipVotes=[false,false];
+        init.skipVotes[1-role]=true;
+        init.note='🍀 相手がサイコロ勝負をスキップしたがっています。';
+        maybeDecideDiceSkip();
+        render();return;
+      }
+      if(m.t==='initiative-skip-result'&&game.phase==='initiative'&&!solo
+        &&role===1&&game.match?.method==='dice'){
+        if(m.attempt!==game.initiative.attempt
+          ||!game.initiative.skipVotes?.every(Boolean)||![0,1].includes(m.starter))return;
+        applyDiceSkipStarter(m.starter);return;
+      }
       if(m.t==='rematch-yes'&&game.phase==='finished'&&!solo){
         rematchRemote=true;
         rematchMessage=rematchLocal?'両方の希望を確認しています…':'相手がもう一戦したがっています！';
@@ -2282,6 +2347,8 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('frontRed').addEventListener('click',()=>applyPreset('bad'));
     $('replayLast').addEventListener('click',replayLastMove);
     $('initiativeDraw').addEventListener('click',submitFirstDraw);
+    $('initiativeSkipAnimation').addEventListener('click',skipDiceAnimation);
+    $('initiativeSkipDice').addEventListener('click',voteDiceSkip);
     $('firstMode').addEventListener('change',updateFirstModeDescription);
     updateFirstModeDescription();
     $('resultInspect').addEventListener('click',()=>{
