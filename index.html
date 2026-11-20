@@ -2053,7 +2053,18 @@
     function at(x,y){return game.pieces.find(p=>p.x===x&&p.y===y);}
     function isExit(p){return p && p.y===(p.owner===0?0:5)&&(p.x===0||p.x===5);}
     function legal(m,by,allowPending=false){if(!game||game.phase!=='playing'||(movePending&&!allowPending)||game.turn!==by||m.seq!==game.seq+1)return null;const p=findPiece(m.id);if(!p||p.owner!==by)return null;if(m.t==='escape'){if(!isExit(p))return null;return{p,cap:null};}if(m.t!=='move'||!Number.isInteger(m.x)||!Number.isInteger(m.y)||m.x<0||m.x>5||m.y<0||m.y>5||Math.abs(m.x-p.x)+Math.abs(m.y-p.y)!==1)return null;const cap=at(m.x,m.y);if(cap&&cap.owner===by)return null;return{p,cap};}
-    async function validProof(piece,kind,salt){if(!piece||!['good','bad'].includes(kind)||!(/^[0-9a-f]{32}$/).test(salt||''))return false;const expected=game.commitments[piece.owner]?.[piece.id];if(!expected)return false;return(await digest(commitmentData(piece,kind,salt)))===expected;}
+    async function validInitialProof(piece,kind,salt){
+      if(!piece||!['good','bad'].includes(kind)||!(/^[0-9a-f]{32}$/).test(salt||''))return false;
+      const expected=game.commitments[piece.owner]?.[piece.id];
+      if(!expected)return false;
+      return(await digest(commitmentData(piece,kind,salt)))===expected;
+    }
+    async function validProof(piece,kind,salt){
+      // 正体を入れ替えた後でも、元の固定コミットメントに遡って確認する。
+      if(!piece)return false;
+      const origin=colorOrigin(piece.id);
+      return validInitialProof({owner:piece.owner,id:origin},kind,salt);
+    }
     function gameError(msg){if(game){game.error=msg;if(game.phase!=='finished')game.phase='disconnected';render();$('moveMessage').textContent=msg;}else setRoomInfo(msg);}
     function commitMove(m,capturedColor){if(!game||game.phase!=='playing')return;const attacker=findPiece(m.id);const from={x:attacker.x,y:attacker.y};const target=m.t==='move'?at(m.x,m.y):null;const targetOwner=target?.owner;const targetId=target?.id;if(target){game.pieces=game.pieces.filter(p=>p.id!==targetId);game.captured[targetOwner][capturedColor]++;game.hands[attacker.owner].push({id:targetId,kind:capturedColor});history('P'+(attacker.owner+1)+'が相手の'+(capturedColor==='good'?'青':'赤')+'い駒を取りました');scheduleCaptureIntro(capturedColor,attacker.owner,game.captured[targetOwner][capturedColor],m,from,targetId);}
       else history('P'+(attacker.owner+1)+'が駒を動かしました');
@@ -2066,7 +2077,9 @@
     function endGame(winner,reason,winType=null){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;game.winType=winType;updateSeriesAfterResult(winner);history('決着！ '+reason);recordResult();sendAllSecrets();render();if(captureIntro!==null||!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
     function sendAllSecrets(){if(!game||!connected)return;
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
-      const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
+      const pieces=Object.entries(game.mySecrets).map(([id,s])=>
+        ({id:colorOrigin(id),kind:s.kind,salt:s.salt}));
+      send({t:'final-reveal',round:game.round,pieces});}
 
 
     // 位置は動かさず、隣接する2体の「元の色に対する権利」を交換する。
@@ -2189,7 +2202,7 @@
     }
     function attemptScout(targetId){
       if(!game||!connected||scoutPending||movePending||captureInProgress()
-        ||game.phase!=='playing'||game.turn!==role||!scoutMode)return;
+        ||game.phase!=='playing'||game.turn!==role||!scoutMode||transformMode)return;
       const own=selectedMine();if(!own)return;
       const m={t:'scout',round:game.round,seq:game.seq+1,id:own.id,targetId};
       if(!validScout(m,role))return;
@@ -2334,7 +2347,31 @@
       if(m.t==='capture-proof'&&movePending&&game.phase==='playing'){const pending=movePending;const v=legal(pending,role,true);
         if(!v||!v.cap||pending.seq!==m.seq||v.cap.id!==m.id)return gameError('相手の取得情報が一致しません。');if(!await validProof(v.cap,m.kind,m.salt))return gameError('相手の駒の色を検証できませんでした。');movePending=null;commitMove(pending,m.kind);return;}
       if(m.t==='escape'&&game.phase==='playing'){const v=legal(m,1-role);if(!v||!await validProof(v.p,m.kind,m.salt)||m.kind!=='good')return gameError('脱出の条件を検証できません。');game.moves.push({id:m.id,owner:1-role,type:'escape',seq:m.seq});game.seq=m.seq;endGame(1-role,'青い駒を出口から脱出させました','escape');return;}
-      if(m.t==='final-reveal'&&game.phase==='finished'){if(!Array.isArray(m.pieces)||m.pieces.length!==8)return gameError('終了時の色確認に失敗しました。');const seen=new Set(),reveal={};let good=0,bad=0;for(const item of m.pieces){const p0id='p'+(1-role)+'-';if(typeof item.id!=='string'||!item.id.startsWith(p0id)||seen.has(item.id)||!await validProof({owner:1-role,id:item.id},item.kind,item.salt))return gameError('終了時の駒の色が一致しません。');seen.add(item.id);reveal[item.id]=item.kind;if(item.kind==='good')good++;else bad++;}if(good!==4||bad!==4)return gameError('相手の色の数が正しくありません。');game.opponentRevealed=reveal;game.opponentVerified=true;history('相手の駒の色を確認できました');render();return;}
+      if(m.t==='final-reveal'&&game.phase==='finished'){
+        if(!Array.isArray(m.pieces)||m.pieces.length!==8)return gameError('終了時の色確認に失敗しました。');
+        const seen=new Set(),original={};let good=0,bad=0;
+        for(const item of m.pieces){
+          const prefix='p'+(1-role)+'-';
+          if(typeof item.id!=='string'||!item.id.startsWith(prefix)||seen.has(item.id)
+            ||!await validInitialProof({owner:1-role,id:item.id},item.kind,item.salt))
+            return gameError('終了時の元の駒色が一致しません。');
+          seen.add(item.id);original[item.id]=item.kind;
+          if(item.kind==='good')good++;else bad++;
+        }
+        if(good!==4||bad!==4)return gameError('相手の初期の駒色の数が正しくありません。');
+        if(game.match?.mode==='transform'){
+          // 相手の「赤と青だけを交換」という条件は、初期証明を得た終局時に検証。
+          for(const move of game.transformHistory||[]){
+            if(move.owner===1-role&&original[move.a]===original[move.b])
+              return gameError('相手の正体変化の組が赤と青になっていません。');
+          }
+        }
+        const current={};
+        for(const id of Object.keys(original))current[id]=original[colorOrigin(id)];
+        game.opponentRevealed=current;game.opponentVerified=true;
+        history('相手の元の駒色と正体変化の履歴を検証できました');
+        render();return;
+      }
       if(m.t==='restart'&&role===1&&game.phase==='finished'
         &&rematchLocal&&rematchRemote&&Number.isInteger(m.next)&&m.next===game.round+1){
         const expected=nextMatchSettings(),received=m.settings;
