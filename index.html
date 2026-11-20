@@ -675,15 +675,152 @@
     let captureIntro=null,captureIntroTimer=null;
     const REACTION_EMOJIS=['😆','😮','👏','👻'],PREF_KEY='ghostDuelPrefsV1',SAVE_KEY='ghostDuelSaveV1';
     const FRIEND_KEY='ghostDuelFriendListV1',IDENTITY_KEY='ghostDuelFriendIdV1',NAME_KEY='ghostDuelFriendNameV1';
+    const STATS_KEY='ghostDuelStatsV1';
+    const CPU_STYLES=['balanced','aggressive','careful','tricky'],GHOST_SKINS=['classic','hat','bow','glasses'];
+    const CPU_STYLE_DESCRIPTIONS={
+      balanced:'攻撃と脱出のバランスを取る、標準的な相手です。',
+      aggressive:'相手の駒を積極的に取りに来ます。捕獲する判断を重視します。',
+      careful:'青い駒を守りながら、危険を避けて出口を目指します。',
+      tricky:'赤い駒を近づけて取らせようとし、青い駒は慎重に動かします。'
+    };
+    const CPU_STYLE_LABELS={balanced:'バランス型',aggressive:'攻撃型',careful:'慎重型',tricky:'だまし型'};
     const FRIEND_RE=/^[A-HJ-NP-Z2-9]{10}$/;
     let localId='',localName='プレイヤー',friends=[],opponentProfile=null,inviteFriendId=null;
     let rematchLocal=false,rematchRemote=false,rematchStarted=false,rematchMessage='';
     let reactionTimer=null,lastReactionSent=0,lastReactionReceived=0;
-    let boardSize='normal',boardColor='night',effectsMode='on';
+    let boardSize='normal',boardColor='night',effectsMode='on',ghostSkin='classic',cpuStyle='balanced';
+    let stats=emptyStats();
     const CODE_RE=/^[A-HJ-NP-Z2-9]{8}$/;
     function randCode(){ const a=new Uint8Array(8);crypto.getRandomValues(a);return Array.from(a,n=>ALPHABET[n%ALPHABET.length]).join(''); }
     function nonce(){const a=new Uint8Array(16);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(16).padStart(2,'0')).join('');}
 
+
+    function emptyStats(){
+      return {v:1,games:0,wins:0,losses:0,streak:0,bestStreak:0,
+        byMode:{cpu:{games:0,wins:0},online:{games:0,wins:0}},
+        winTypes:{blue:0,red:0,escape:0,other:0},byFriend:{},recent:[]};
+    }
+    function saneCount(n){
+      return Number.isSafeInteger(n)&&n>=0&&n<=10000000?n:0;
+    }
+    function readStats(){
+      try{
+        const raw=JSON.parse(localStorage.getItem(STATS_KEY)||'null');
+        if(!raw||raw.v!==1)return;
+        const s=emptyStats();
+        for(const key of ['games','wins','losses','streak','bestStreak'])s[key]=saneCount(raw[key]);
+        for(const mode of ['cpu','online']){
+          s.byMode[mode].games=saneCount(raw.byMode?.[mode]?.games);
+          s.byMode[mode].wins=saneCount(raw.byMode?.[mode]?.wins);
+        }
+        for(const type of ['blue','red','escape','other'])s.winTypes[type]=saneCount(raw.winTypes?.[type]);
+        if(raw.byFriend&&typeof raw.byFriend==='object'&&!Array.isArray(raw.byFriend)){
+          for(const [id,v] of Object.entries(raw.byFriend).slice(0,100)){
+            if(FRIEND_RE.test(id))s.byFriend[id]={games:saneCount(v?.games),wins:saneCount(v?.wins)};
+          }
+        }
+        if(Array.isArray(raw.recent)){
+          s.recent=raw.recent.slice(0,20).filter(row=>row&&typeof row==='object'
+            &&['cpu','online'].includes(row.mode)&&typeof row.win==='boolean'
+            &&Number.isFinite(row.time)&&row.time>0).map(row=>({
+            mode:row.mode,win:row.win,time:row.time,
+            type:['blue','red','escape'].includes(row.type)?row.type:'other',
+            moves:saneCount(row.moves),
+            friendId:FRIEND_RE.test(row.friendId||'')?row.friendId:null,
+            style:CPU_STYLES.includes(row.style)?row.style:null
+          }));
+        }
+        stats=s;
+      }catch{}
+    }
+    function saveStats(){
+      try{localStorage.setItem(STATS_KEY,JSON.stringify(stats));}catch{}
+    }
+    function renderStats(){
+      const s=stats;
+      const rate=n=>Math.round(n*100/Math.max(1,s.games))+'%';
+      $('statsCompact').textContent=s.games+'戦 '+s.wins+'勝';
+      $('statsGames').textContent=String(s.games);
+      $('statsWins').textContent=s.wins+'勝 / '+s.losses+'敗';
+      $('statsRate').textContent=rate(s.wins);
+      $('statsStreak').textContent=String(s.streak);
+      $('statsBestStreak').textContent=String(s.bestStreak);
+      $('statsCpuOnline').textContent=s.byMode.cpu.games+' / '+s.byMode.online.games;
+      $('statsBreakdown').textContent='勝ち方の内訳：🔵 青4体 '+s.winTypes.blue
+        +'勝 ／ 🔴 赤4体 '+s.winTypes.red+'勝 ／ 🚪 脱出 '+s.winTypes.escape
+        +'勝 ／ その他 '+s.winTypes.other+'勝';
+      const savedFriends=friends.filter(p=>s.byFriend[p.id]?.games>0);
+      $('statsFriend').textContent=savedFriends.length?
+        'フレンドとの成績：'+savedFriends.map(p=>{
+          const v=s.byFriend[p.id];return p.name+' '+v.wins+'勝/'+v.games+'戦';
+        }).join(' ／ '):'';
+      const root=$('statsRecent');root.replaceChildren();
+      if(!s.recent.length){
+        const li=document.createElement('li');li.textContent='まだ記録はありません。';root.append(li);
+      }
+      for(const row of s.recent.slice(0,8)){
+        const li=document.createElement('li');
+        const friend=friends.find(p=>p.id===row.friendId);
+        const other=row.mode==='cpu'?'CPU（'+(CPU_STYLE_LABELS[row.style]||'標準')+'）':friend?friend.name:'オンライン';
+        const date=new Date(row.time);
+        const when=Number.isFinite(date.getTime())?(date.getMonth()+1)+'/'+date.getDate():'';
+        const type=row.type==='blue'?'青を4体':row.type==='red'?'赤を取らせた':row.type==='escape'?'脱出':'その他';
+        li.textContent=when+' '+(row.win?'🏆 勝利':'敗北')+' ／ '+other+' ／ '+type+' ／ '+row.moves+'手';
+        root.append(li);
+      }
+    }
+    function recordResult(){
+      if(!game||game.phase!=='finished'||game.statsRecorded)return;
+      game.statsRecorded=true;
+      const win=game.winner===role,mode=solo?'cpu':'online';
+      const type=['blue','red','escape'].includes(game.winType)?game.winType:'other';
+      const friendId=!solo&&FRIEND_RE.test(opponentProfile?.id||'')?opponentProfile.id:null;
+      stats.games++;stats.byMode[mode].games++;
+      if(win){
+        stats.wins++;stats.byMode[mode].wins++;
+        stats.streak++;stats.bestStreak=Math.max(stats.bestStreak,stats.streak);
+        stats.winTypes[type]++;
+      }else{
+        stats.losses++;stats.streak=0;
+      }
+      if(friendId){
+        const row=stats.byFriend[friendId]||{games:0,wins:0};
+        row.games++;if(win)row.wins++;
+        stats.byFriend[friendId]=row;
+      }
+      stats.recent.unshift({time:Date.now(),mode,win,type,moves:game.moves?.length||0,
+        friendId,style:solo?cpuStyle:null});
+      stats.recent.length=Math.min(stats.recent.length,20);
+      saveStats();renderStats();
+    }
+    function renderResultStats(){
+      if(!game||game.phase!=='finished')return;
+      const label=solo?'CPU戦':'オンライン対戦';
+      const rate=stats.games?Math.round(stats.wins*100/stats.games):0;
+      $('resultStats').textContent='🏆 '+label+' ／ 通算 '+stats.wins+'勝 '+stats.losses
+        +'敗（勝率 '+rate+'%） ／ 現在 '+stats.streak+'連勝 ／ '+(game.moves?.length||0)+'手で決着';
+    }
+    function updateGhostSkin(next,rerender=true){
+      ghostSkin=GHOST_SKINS.includes(next)?next:'classic';
+      $('ghostSkinHome').value=ghostSkin;
+      $('ghostSkinGame').value=ghostSkin;
+      const preview=$('ghostSkinPreview');
+      preview.className='ghost enemy preview'+(ghostSkin==='classic'?'':' skin-'+ghostSkin);
+      try{
+        const old=JSON.parse(localStorage.getItem(PREF_KEY)||'{}');
+        localStorage.setItem(PREF_KEY,JSON.stringify({...old,boardSize,boardColor,effectsMode,ghostSkin,cpuStyle}));
+      }catch{}
+      if(rerender&&game)render();
+    }
+    function updateCPUStyle(next){
+      cpuStyle=CPU_STYLES.includes(next)?next:'balanced';
+      $('cpuStyle').value=cpuStyle;
+      $('cpuStyleNote').textContent=CPU_STYLE_DESCRIPTIONS[cpuStyle];
+      try{
+        const old=JSON.parse(localStorage.getItem(PREF_KEY)||'{}');
+        localStorage.setItem(PREF_KEY,JSON.stringify({...old,boardSize,boardColor,effectsMode,ghostSkin,cpuStyle}));
+      }catch{}
+    }
     function normalizeFriendName(name){
       return typeof name==='string'?name.trim().slice(0,18):'';
     }
@@ -720,6 +857,7 @@
     }
     function renderFriends(){
       $('friendCount').textContent=friends.length+'人';
+      if(stats)renderStats();
       const root=$('friendList');root.replaceChildren();
       if(!friends.length){
         const tip=document.createElement('p');tip.className='friend-hint';
@@ -732,6 +870,12 @@
         const strong=document.createElement('strong');strong.textContent='👻 '+item.name;
         const code=document.createElement('small');code.textContent=item.id;
         detail.append(strong,code);
+        const record=stats.byFriend[item.id];
+        if(record?.games){
+          const wins=document.createElement('small');
+          wins.textContent='対戦 '+record.games+'回 ／ '+record.wins+'勝';
+          detail.append(wins);
+        }
         const actions=document.createElement('div');actions.className='friend-row-buttons';
         const invite=document.createElement('button');invite.type='button';invite.className='primary';
         invite.textContent='招待';invite.addEventListener('click',()=>inviteSavedFriend(item));
@@ -837,7 +981,7 @@
       if(game.phase==='finished'){clearAutoSave();return;}
       try{localStorage.setItem(SAVE_KEY,JSON.stringify({
         v:1,timestamp:Date.now(),solo,role,room,
-        game,cpuSecrets:solo?cpuSecrets:null,cpuDifficulty,
+        game,cpuSecrets:solo?cpuSecrets:null,cpuDifficulty,cpuStyle,
         pendingCapture:!!movePending
       }));}catch{}
     }
@@ -867,6 +1011,7 @@
       cpuSecrets=solo?saved.cpuSecrets:{};
       cpuDifficulty=['easy','normal','hard'].includes(saved.cpuDifficulty)?saved.cpuDifficulty:'normal';
       $('cpuDifficulty').value=cpuDifficulty;
+      updateCPUStyle(CPU_STYLES.includes(saved.cpuStyle)?saved.cpuStyle:cpuStyle);
       selection=null;movePending=null;finishing=false;
       $('home').classList.add('hidden');
       $('gamePanel').classList.remove('hidden');
@@ -913,6 +1058,11 @@
       $('boardSize').value=boardSize;
       $('boardColor').value=boardColor;
       $('effectsMode').value=effectsMode;
+      $('ghostSkinHome').value=ghostSkin;
+      $('ghostSkinGame').value=ghostSkin;
+      $('cpuStyle').value=cpuStyle;
+      $('cpuStyleNote').textContent=CPU_STYLE_DESCRIPTIONS[cpuStyle];
+      $('ghostSkinPreview').className='ghost enemy preview'+(ghostSkin==='classic'?'':' skin-'+ghostSkin);
       $('captureTempo').value=captureTempo;
     }
     function readDisplaySettings(){
@@ -921,6 +1071,8 @@
         if(['small','normal','large'].includes(x.boardSize))boardSize=x.boardSize;
         if(['night','forest','warm','contrast'].includes(x.boardColor))boardColor=x.boardColor;
         if(['on','off'].includes(x.effectsMode))effectsMode=x.effectsMode;
+        if(GHOST_SKINS.includes(x.ghostSkin))ghostSkin=x.ghostSkin;
+        if(CPU_STYLES.includes(x.cpuStyle))cpuStyle=x.cpuStyle;
       }catch{}
       applyDisplaySettings();
     }
@@ -932,7 +1084,7 @@
       if(!['night','forest','warm','contrast'].includes(boardColor))boardColor='night';
       if(!['on','off'].includes(effectsMode))effectsMode='on';
       applyDisplaySettings();
-      try{localStorage.setItem(PREF_KEY,JSON.stringify({boardSize,boardColor,effectsMode}));}catch{}
+      try{localStorage.setItem(PREF_KEY,JSON.stringify({boardSize,boardColor,effectsMode,ghostSkin,cpuStyle}));}catch{}
     }
     function clearReaction(){
       if(reactionTimer!==null){clearTimeout(reactionTimer);reactionTimer=null;}
@@ -1108,6 +1260,7 @@
       };
       $('resultTagline').textContent=kind?variants[kind].title:'対局終了';
       $('resultReason').textContent=kind?variants[kind].reason:game.reason;
+      renderResultStats();
       updateRematchUI();
       updateOpponentFriendUI();
       overlay.classList.remove('hidden');
@@ -1219,6 +1372,7 @@
     function enterRoom(){ $('home').classList.add('hidden');$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
+      updateCPUStyle($('cpuStyle').value);
       if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
       teardown();solo=true;connected=true;role=0;room='SOLO';
       $('home').classList.add('hidden');$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
@@ -1298,7 +1452,7 @@
       if(target&&game.captured[targetOwner].good===4){endGame(attacker.owner,'相手の青い駒を4体取りました','blue');}
       else if(target&&game.captured[targetOwner].bad===4){endGame(targetOwner,'自分の赤い駒4体を取らせました','red');}
       else {game.turn=1-game.turn;render();}}
-    function endGame(winner,reason,winType=null){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;game.winType=winType;history('決着！ '+reason);sendAllSecrets();render();if(captureIntro!==null||!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
+    function endGame(winner,reason,winType=null){if(!game||game.phase==='finished')return;game.phase='finished';game.winner=winner;game.reason=reason;game.winType=winType;history('決着！ '+reason);recordResult();sendAllSecrets();render();if(captureIntro!==null||!$('captureFlash').classList.contains('hidden'))pendingResult=true;else showResult();}
     function sendAllSecrets(){if(!game||!connected)return;
       if(solo){game.opponentRevealed=Object.fromEntries(Object.entries(cpuSecrets).map(([id,s])=>[id,s.kind]));game.opponentVerified=true;return;}
       const pieces=Object.entries(game.mySecrets).map(([id,s])=>({id,kind:s.kind,salt:s.salt}));send({t:'final-reveal',round:game.round,pieces});}
@@ -1565,7 +1719,7 @@
       $('replayLast').disabled=!last;
       $('lastMoveText').textContent=last?(last.owner===role?'自分':'相手')+'が直前に1マス移動しました':'';
       renderReview();
-$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'あなた vs CPU':'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
+$('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'CPU・'+CPU_STYLE_LABELS[cpuStyle]:'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
       const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup');$('ready').classList.toggle('hidden',game.phase!=='setup');$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
       if(game.phase==='setup'){$('gameHint').textContent='自分の駒を2つタップすると赤青が入れ替わります。相手に色は見えません。';$('moveMessage').textContent=ownReady?(solo?'対戦を開始します！':'配置を確定しました。相手の準備を待っています。'):'赤4体・青4体を確認して「配置を確定」を押してください。';}
@@ -1582,7 +1736,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       }else if(cueMove){
         cue.textContent='🎯 '+capturePositionText(cueMove.x,cueMove.y)+'の相手の駒を捕獲中…正体を確認しています';
       }
-      const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy');ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
+      const board=$('board');board.replaceChildren();const sel=selectedMine();for(let cy=0;cy<6;cy++)for(let cx=0;cx<6;cx++){const {x,y}=localToGlobal(cx,cy);const p=at(x,y),cell=document.createElement('button');cell.type='button';cell.className='cell';const isEx=cy===0&&(cx===0||cx===5);if(isEx){cell.classList.add('exit');const marker=document.createElement('span');marker.className='exit-mark';marker.textContent='★';cell.append(marker);}if(p){const isOwn=p.owner===role;const kind=isOwn?game.mySecrets[p.id]?.kind:game.opponentRevealed[p.id];const ghost=document.createElement('span');ghost.className='ghost '+(kind==='good'?'good':kind==='bad'?'bad':'enemy')+(ghostSkin==='classic'?'':' skin-'+ghostSkin);ghost.textContent='👻';const mark=document.createElement('span');mark.className='mark';mark.textContent=isOwn?(kind==='good'?'青':'赤'):'?';if(kind&& !isOwn)mark.textContent=kind==='good'?'青':'赤';ghost.append(mark);cell.append(ghost);}if(game.lastMove&&game.phase!=='setup'){
         if(x===game.lastMove.fromX&&y===game.lastMove.fromY)cell.classList.add('last-from');
         if(x===game.lastMove.toX&&y===game.lastMove.toY)cell.classList.add('last-to');
       }
@@ -1598,7 +1752,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           cell.classList.add('capture-landing');
           // 被捕獲駒は先に中立色で見せ、衝突時に消す。正体は後の公開画面まで秘密。
           const victim=document.createElement('span');
-          victim.className='ghost enemy captured-victim';
+          victim.className='ghost enemy captured-victim'+(ghostSkin==='classic'?'':' skin-'+ghostSkin);
           victim.textContent='👻';
           victim.setAttribute('aria-hidden','true');
           cell.append(victim);
@@ -1616,6 +1770,10 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('captureTempo').addEventListener('change',()=>{captureTempo=$('captureTempo').value;try{localStorage.setItem('ghostDuelCaptureTempo',captureTempo);}catch{}});
     for(const id of ['boardSize','boardColor','effectsMode'])$(id).addEventListener('change',saveDisplaySettings);
     readDisplaySettings();
+    readStats();renderStats();
+    $('ghostSkinHome').addEventListener('change',()=>updateGhostSkin($('ghostSkinHome').value));
+    $('ghostSkinGame').addEventListener('change',()=>updateGhostSkin($('ghostSkinGame').value));
+    $('cpuStyle').addEventListener('change',()=>updateCPUStyle($('cpuStyle').value));
     for(const button of $('reactionBar').querySelectorAll('button[data-reaction]')){
       button.addEventListener('click',()=>sendReaction(button.dataset.reaction));
     }
