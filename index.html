@@ -1439,6 +1439,75 @@
       $('seriesFormat').addEventListener('change',updatePlaySummary);
       renderModeCards();resetPlayFlow();
     }
+
+    let tutorialStep=0,tutorialReturnFocus=null;
+    function tutorialRender(){
+      $('tutorialPiece').classList.toggle('correct',tutorialStep>=1);
+      $('tutorialTarget').classList.toggle('correct',tutorialStep>=2);
+      $('tutorialPiece').disabled=tutorialStep!==0;
+      $('tutorialTarget').disabled=tutorialStep!==1;
+      $('tutorialTargetSymbol').textContent=tutorialStep>=2?'👻':'○';
+      $('tutorialNext').disabled=tutorialStep<2;
+      if(tutorialStep===0){
+        $('tutorialProgress').textContent='練習 1 / 3';
+        $('tutorialHeading').textContent='① 自分の駒を選ぶ';
+        $('tutorialText').textContent='青いオバケも赤いオバケも、上下左右に1マス移動できます。まず左の青い駒をタップしてみよう。';
+        $('tutorialFeedback').textContent='👇 左の青いオバケをタップ！';
+        $('tutorialNext').textContent='次へ';
+      }else if(tutorialStep===1){
+        $('tutorialProgress').textContent='練習 2 / 3';
+        $('tutorialHeading').textContent='② 移動先をタップ';
+        $('tutorialText').textContent='選んだ駒の上下左右が移動先。光る丸をタップすると1マス移動します。相手の駒なら捕獲できます。';
+        $('tutorialFeedback').textContent='👉 黄色の丸をタップして移動！';
+      }else if(tutorialStep===2){
+        $('tutorialProgress').textContent='練習 3 / 3';
+        $('tutorialHeading').textContent='③ 色を推理して勝とう';
+        $('tutorialText').textContent='🔵 青4体を捕獲、🔴 自分の赤4体を取らせる、🚪 自分の青を出口から脱出させる。どれかで勝利！';
+        $('tutorialFeedback').textContent='✅ よくできました！ 別のゲームモードでは特殊能力も使えます。';
+        $('tutorialNext').textContent='ルールを確認した！';
+      }
+    }
+    function openTutorial(trigger=null){
+      tutorialReturnFocus=trigger||null;
+      tutorialStep=0;tutorialRender();
+      $('tutorialOverlay').classList.remove('hidden');
+      $('tutorialPiece').focus();
+    }
+    function closeTutorial(completed=false){
+      $('tutorialOverlay').classList.add('hidden');
+      if(completed){
+        try{localStorage.setItem('ghostDuelTutorialDoneV1','true');}catch{}
+        $('playTutorial').textContent='📖 基本操作をもう一度練習';
+      }
+      tutorialReturnFocus?.focus();
+      tutorialReturnFocus=null;
+    }
+    function bindTutorial(){
+      $('playTutorial').addEventListener('click',()=>openTutorial($('playTutorial')));
+      $('gameTutorial').addEventListener('click',()=>openTutorial($('gameTutorial')));
+      $('tutorialClose').addEventListener('click',()=>closeTutorial());
+      $('tutorialSkip').addEventListener('click',()=>closeTutorial());
+      $('tutorialPiece').addEventListener('click',()=>{
+        if(tutorialStep!==0)return;
+        tutorialStep=1;tutorialRender();$('tutorialTarget').focus();
+      });
+      $('tutorialTarget').addEventListener('click',()=>{
+        if(tutorialStep!==1)return;
+        tutorialStep=2;tutorialRender();$('tutorialNext').focus();
+      });
+      $('tutorialNext').addEventListener('click',()=>{
+        if(tutorialStep===2)closeTutorial(true);
+      });
+      document.addEventListener('keydown',event=>{
+        if(event.key==='Escape'&&!$('tutorialOverlay').classList.contains('hidden')){
+          closeTutorial();event.preventDefault();
+        }
+      });
+      try{
+        if(localStorage.getItem('ghostDuelTutorialDoneV1')==='true')
+          $('playTutorial').textContent='📖 基本操作をもう一度練習';
+      }catch{}
+    }
     function matchPreferences(){
       return {format:SERIES_FORMATS.includes($('seriesFormat').value)?$('seriesFormat').value:'single',
         method:FIRST_MODES.includes($('firstMode').value)?$('firstMode').value:'dice',
@@ -3468,6 +3537,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     }
     initializeHomeTabs();
     setupPlayJourney();
+    bindTutorial();
     const query=new URL(location.href).searchParams.get('room');
     if(query&&CODE_RE.test(query.toUpperCase())){
       $('joinCode').value=query.toUpperCase();openPlayFlow('join');
