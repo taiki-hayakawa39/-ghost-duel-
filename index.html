@@ -840,7 +840,7 @@
         <p class="muted">1人が部屋を作り、もう1人が部屋番号を入力します。同じWi-Fiでなくても接続できます。</p>
         <button type="button" id="create" class="primary full">部屋を作る</button>
         <div class="separator">または</div>
-        <label for="joinCode" class="kicker">相手から教えてもらった部屋番号</label>
+        <label id="joinCodeLabel" for="joinCode" class="kicker">相手から教えてもらった部屋番号</label>
         <input id="joinCode" class="field" type="text" inputmode="text" maxlength="8" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCDEFGH" aria-label="8文字の部屋番号">
         <button type="button" id="join" class="secondary full" style="margin-top:10px">この部屋に参加する</button>
         <div id="homeMessage" class="status hidden" role="alert" style="margin-top:12px"></div>
@@ -1347,6 +1347,78 @@
       // 招待URL経由では部屋番号の入力欄が見える対戦タブを優先する。
       const invitation=new URL(location.href).searchParams.get('room');
       switchHomeTab(invitation?'play':remembered,false);
+    }
+
+    let playKind=null,playStep='entry';
+    function renderModeCards(){
+      const root=$('modeCards');root.replaceChildren();
+      for(const [key,mode] of Object.entries(GAME_MODES)){
+        const selected=$('gameMode').value===key;
+        const button=document.createElement('button');button.type='button';button.className='mode-card';
+        button.setAttribute('aria-pressed',selected?'true':'false');
+        const title=document.createElement('strong');title.textContent=mode.label;
+        const info=document.createElement('small');info.textContent=mode.description;
+        button.append(title,info);
+        button.addEventListener('click',()=>{
+          $('gameMode').value=key;setGameModeDescription();renderModeCards();updatePlaySummary();
+        });
+        root.append(button);
+      }
+    }
+    function updatePlaySummary(){
+      const mode=GAME_MODES[$('gameMode').value]||GAME_MODES.classic;
+      $('playSummary').textContent=mode.label+' ／ '+
+        ($('seriesFormat').value==='best3'?'🏆 3本勝負':'1試合ずつ')+
+        ' ／ 先手：'+(FIRST_MODE_LABELS[$('firstMode').value]||'🎲 サイコロ');
+    }
+    function renderPlayFlow(){
+      const entry=playStep==='entry',mode=playStep==='mode',rules=playStep==='rules',joinStage=playStep==='join';
+      $('playEntry').classList.toggle('hidden',!entry);
+      $('playFlow').classList.toggle('hidden',entry);
+      $('playModeStage').classList.toggle('hidden',!mode);
+      $('playRulesStage').classList.toggle('hidden',!rules);
+      $('playJoinStage').classList.toggle('hidden',!joinStage);
+      $('playFlowTitle').textContent=joinStage?'部屋に参加する':rules?'対戦前の設定':'ゲームモードを選ぶ';
+      $('soloStart').classList.toggle('hidden',!rules||playKind!=='solo');
+      $('create').classList.toggle('hidden',!rules||playKind!=='host');
+      $('playCpuDock').classList.toggle('hidden',!rules||playKind!=='solo');
+      $('homeMessage').classList.add('hidden');
+      if(rules)updatePlaySummary();
+    }
+    function openPlayFlow(kind){
+      if(!['solo','host','join'].includes(kind))return;
+      playKind=kind;playStep=kind==='join'?'join':'mode';switchHomeTab('play',false);renderPlayFlow();
+      if(typeof window.scrollTo==='function')window.scrollTo(0,0);
+      if(kind==='join')$('joinCode').focus();
+    }
+    function resetPlayFlow(){playKind=null;playStep='entry';renderPlayFlow();}
+    function backPlayFlow(){
+      if(playStep==='rules'){playStep='mode';renderPlayFlow();}
+      else resetPlayFlow();
+    }
+    function setupPlayJourney(){
+      const play=$('tab-play');
+      $('playSavedDock').append($('savedRoom'));
+      $('playModeDock').append($('gameModeMenu'));
+      $('playRulesDock').append($('matchChoices'));
+      $('playCpuDock').append($('openCpuSettings'));
+      $('playLaunchDock').append($('soloStart'),$('create'));
+      $('playJoinDock').append($('joinCodeLabel'),$('joinCode'),$('join'));
+      $('playMessageDock').append($('homeMessage'));
+      const legacy=document.createElement('div');legacy.className='hidden';legacy.setAttribute('aria-hidden','true');
+      for(const node of Array.from(play.children)){
+        if(node.classList.contains('hub-heading')||node.id==='playEntry'||node.id==='playFlow')continue;
+        legacy.append(node);
+      }
+      play.append(legacy);
+      $('quickSolo').addEventListener('click',()=>openPlayFlow('solo'));
+      $('quickHost').addEventListener('click',()=>openPlayFlow('host'));
+      $('quickJoin').addEventListener('click',()=>openPlayFlow('join'));
+      $('playBack').addEventListener('click',backPlayFlow);
+      $('playAdvance').addEventListener('click',()=>{playStep='rules';renderPlayFlow();});
+      $('firstMode').addEventListener('change',updatePlaySummary);
+      $('seriesFormat').addEventListener('change',updatePlaySummary);
+      renderModeCards();resetPlayFlow();
     }
     function matchPreferences(){
       return {format:SERIES_FORMATS.includes($('seriesFormat').value)?$('seriesFormat').value:'single',
@@ -2318,7 +2390,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs(); }
+    function teardown(){ clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs();resetPlayFlow(); }
     function enterRoom(){ $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -3281,7 +3353,11 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       });
     }
     initializeHomeTabs();
-    const query=new URL(location.href).searchParams.get('room');if(query&&CODE_RE.test(query.toUpperCase()))$('joinCode').value=query.toUpperCase();
+    setupPlayJourney();
+    const query=new URL(location.href).searchParams.get('room');
+    if(query&&CODE_RE.test(query.toUpperCase())){
+      $('joinCode').value=query.toUpperCase();openPlayFlow('join');
+    }
     if(!scriptOk)notice('homeMessage','2人オンライン対戦用の通信機能を読み込めません。CPU戦はプレイできます。',true);
   })();
   </script>
