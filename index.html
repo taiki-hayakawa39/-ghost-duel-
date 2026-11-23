@@ -539,6 +539,120 @@
     .hub-setting-grid select{min-width:0;width:100%;min-height:45px;
       font-size:16px;color:#fff;background:#132a40;border:1px solid #7794ac;border-radius:10px;padding:8px 9px}
     @media(max-width:359px){.hub-setting-grid{grid-template-columns:1fr}}
+
+    /* 操作を迷わせない対戦導線 */
+    .hub-old-heading{display:none}
+    .play-entry{display:grid;gap:11px}
+    .quick-play-btn{min-height:81px;display:flex;align-items:center;gap:13px;
+      padding:12px 16px;text-align:left;border-radius:15px;background:#263d56;border:1px solid #698aa6}
+    .quick-play-btn.primary{background:linear-gradient(130deg,#ffe3a8,#eebc70);color:#182a3c;border-color:#e8c28a}
+    .quick-play-btn>span:nth-child(2){display:grid;gap:4px;flex:1}
+    .quick-play-btn strong{font-size:16px}
+    .quick-play-btn small{font-size:12px;opacity:.82;font-weight:600}
+    .quick-play-btn b{font-size:25px}
+    .quick-play-emoji{font-size:28px}
+    .tutorial-link{font-size:13px;min-height:48px;background:#1d334d;color:#dbedff;text-align:center}
+    .play-flow-header{display:flex;align-items:center;gap:12px;margin:0 0 13px}
+    .play-flow-header button{min-height:40px;padding:6px 11px;flex:none}
+    .play-flow-header span{font-size:15px;font-weight:850}
+    .play-flow-step{font-size:12px;font-weight:850;color:#f9d99d;letter-spacing:.04em}
+    .play-summary{padding:10px;border:1px solid #71869c;border-radius:10px;font-size:12px;color:#deebf6;line-height:1.7}
+    .mode-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));gap:9px;margin:12px 0}
+    .mode-card{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;
+      padding:13px;min-height:119px;border:2px solid #526b85;border-radius:14px;background:#192f48}
+    .mode-card strong{font-size:14px;color:#f4f7fa}
+    .mode-card small{font-size:11px;line-height:1.6;color:#c7d7e8;font-weight:500}
+    .mode-card[aria-pressed="true"]{border-color:#ffdb94;background:#3a4053;box-shadow:0 0 0 2px #ffd99537}
+    .mode-card[aria-pressed="true"]:before{content:"✓ 選択中";font-size:10px;font-weight:900;color:#ffe7b2}
+    #gameMode{position:absolute;width:1px;height:1px;opacity:0;clip-path:inset(50%);pointer-events:none}
+    .hub-home .rule-mode-menu{margin:0 0 10px}
+    .hub-home .rule-mode-card{margin-bottom:5px}
+    .hub-home .rule-mode-menu>.rule-heading small{display:none}
+    .hub-home .rule-mode-menu>p:last-child{display:none}
+    .hub-home #playRulesStage .match-choices{margin:0 0 15px}
+    .hub-home #playLaunchDock>button{margin-top:9px;min-height:54px;font-size:16px}
+    .hub-home #playJoinStage #joinCode{margin-top:9px}
+    .hub-home #playJoinStage #join{min-height:52px;font-size:16px}
+    .hub-tab-panel:not(.hidden){animation:hub-panel-enter .2s ease both}
+    @keyframes hub-panel-enter{from{opacity:.55;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+    .profile-card{display:flex;align-items:center;gap:14px;padding:14px;margin-bottom:17px;
+      border:1px solid #587a98;border-radius:14px;background:linear-gradient(125deg,#244361,#1b2c45)}
+    .profile-avatar{font-size:32px;border:1px solid #6a91b6;border-radius:14px;
+      display:grid;place-items:center;width:63px;height:63px;background:#182b42}
+    .profile-content{display:grid;gap:4px;min-width:0}
+    .profile-content strong{font-size:18px}
+    .profile-content small{color:#b5cfe2;font-size:11px;overflow-wrap:anywhere}
+    .profile-content>span{color:#f0d99d;font-size:12px}
+    #friendList .friend-row{border:1px solid #4b6a88;border-radius:12px;padding:12px 10px;margin:9px 0;
+      background:#192f48}
+    #friendList .friend-row-buttons button{min-height:42px}
+    .mini-chart-card,.achievement-card{margin:0 0 13px;padding:12px;border:1px solid #496886;
+      border-radius:12px;background:#172d44}
+    .mini-chart-card>strong,.achievement-card>strong{font-size:14px;color:#ffe3af}
+    .mini-chart-card>small,.achievement-card>p{font-size:11px;color:#bbd1e1;line-height:1.6}
+    .stats-trend{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));align-items:end;gap:5px;
+      min-height:98px;padding:13px 4px 7px;border-bottom:1px solid #647e9c;margin:9px 0}
+    .stats-trend .trend-bar{border-radius:7px 7px 3px 3px;min-height:18px;
+      background:#50c89b;box-shadow:inset 0 2px 3px #fff2}
+    .stats-trend .trend-bar.lose{background:#e99a9e}
+    .stats-trend .trend-bar.empty{background:#43536a;opacity:.4;min-height:12px}
+    .achievement-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
+    .achievement-badge{min-height:59px;padding:8px;border:1px solid #58738d;border-radius:11px;
+      display:flex;align-items:center;gap:7px;background:#253b53}
+    .achievement-badge.locked{opacity:.55;filter:saturate(.35)}
+    .achievement-badge .ach-icon{font-size:20px}
+    .achievement-badge strong{display:block;font-size:11px;color:#f5e5c1}
+    .achievement-badge small{display:block;font-size:10px;color:#bad0e1}
+    .game-hud{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;
+      border:1px solid #5b83a0;border-radius:11px;background:#203950;margin:3px 0 8px}
+    .game-hud>div:first-child{display:grid;gap:2px}
+    .game-hud strong{font-size:14px;color:#ffdea6}
+    .game-hud small{font-size:10px;color:#c3d6e8}
+    .hud-chips{display:grid;gap:4px;text-align:right}
+    .hud-chips span{font-size:11px;white-space:nowrap;color:#d8e6f4}
+    body.game-active #ruleModeBadge{font-size:11px;padding:5px 8px;margin:2px 0 6px}
+    body.game-active .game-hud{margin:3px 0 5px}
+    body.game-active #seriesScore{margin:3px 0}
+    .game-guide-btn{font-size:11px;min-height:34px;padding:5px 9px}
+    .ability-panel{padding:11px;margin:8px 0;border:1px solid #9b93d4;background:#262d4c;border-radius:11px}
+    .ability-label{display:flex;justify-content:space-between;gap:5px;margin-bottom:6px;color:#f4ddfc;font-size:12px;font-weight:900}
+    .ability-label small{font-size:10px}
+    .ability-button{width:100%;min-height:45px;background:#534c88;border:1px solid #b5acf3;color:#fff}
+    .ability-hint{margin:7px 2px 0;color:#d4d7f0;font-size:11px;line-height:1.6}
+    /* ロジックは元の能力UIと共用し、可視操作は一つのボタンに統一 */
+    #scoutToolbar,#transformToolbar{display:none!important}
+    .cell.valid:not(.capture-target):not(:has(.ghost))::after{content:"";width:16px;height:16px;z-index:3;
+      border-radius:50%;background:#ffe1a2;box-shadow:0 0 0 5px #fff2;pointer-events:none}
+    .cell.capture-target{outline:3px solid #ff9a99!important;border-color:#ffd0d1!important}
+    .cell.selected .ghost{filter:drop-shadow(0 4px 7px #ffe2a266);transform:translateY(-3px) scale(1.055)}
+    .cell.selected:after{content:"✓";position:absolute;top:-5px;left:-4px;z-index:5;border-radius:99px;
+      padding:1px 5px;background:#ffe0a1;color:#172a3c;font-size:12px;font-weight:900;pointer-events:none}
+    .tutorial-overlay{position:fixed;z-index:2550;inset:0;padding:15px;display:grid;place-items:center;
+      background:#030d1cec;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+    .tutorial-card{position:relative;width:min(440px,100%);max-height:calc(100dvh - 35px);overflow:auto;
+      padding:22px 18px 18px;border-radius:22px;border:2px solid #dcb981;background:linear-gradient(145deg,#253e57,#15263b)}
+    .tutorial-close{position:absolute;right:10px;top:9px;min-width:42px;min-height:42px;font-size:26px;background:transparent;border:0}
+    .tutorial-progress{font-size:12px;color:#f4cf8c;margin:6px 0}
+    .tutorial-card h2{font-size:23px;margin:7px 0}
+    .tutorial-card>p:not(.tutorial-progress){font-size:14px;line-height:1.75;color:#e2ecf7}
+    .tutorial-mini-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px auto;width:min(285px,100%);
+      padding:12px;border-radius:13px;background:#142c40}
+    .tutorial-mini-cell{min-height:64px;border:1px solid #668399;background:#37556c;
+      border-radius:10px;font-size:27px;position:relative}
+    .tutorial-mini-cell.own{background:#8fceef;color:#203e5a}
+    .tutorial-mini-cell.target{border:2px solid #ffd99d;color:#ffe3ad}
+    .tutorial-mini-cell.blocked{display:grid;place-items:center;opacity:.55;pointer-events:none}
+    .tutorial-mini-cell small{position:absolute;bottom:2px;right:4px;font-size:12px}
+    .tutorial-mini-cell.correct{outline:4px solid #72e5ad;outline-offset:1px}
+    .tutorial-feedback{font-weight:800;color:#ffe3a5!important}
+    .tutorial-card #tutorialNext{margin-top:12px}
+    .tutorial-card #tutorialSkip{margin-top:7px}
+    @media(max-width:380px){.quick-play-btn{min-height:74px;padding:10px 11px}
+      .quick-play-emoji{font-size:25px}.mode-card-grid{grid-template-columns:1fr}
+      .mode-card{min-height:80px}.achievement-list{grid-template-columns:1fr}}
+    @media(prefers-reduced-motion:reduce){.hub-tab-panel:not(.hidden){animation:none!important}
+      .cell.selected .ghost{transform:none!important}}
+    body.effects-off .hub-tab-panel:not(.hidden){animation:none!important}
   </style>
 </head>
 <body>
@@ -548,13 +662,50 @@
       <section id="home" class="hub-home">
         <!-- タブの中へ既存フォームを移動。各入力のIDとイベントはそのまま保持する。 -->
         <div id="tab-play" class="panel hub-tab-panel" role="tabpanel" aria-labelledby="navPlay" tabindex="0">
-          <div class="hub-heading"><span>GHOST DUEL</span><h2>🎮 対戦する</h2><p>好きなルールで、1人でも友達とも遊べます。</p></div>
+          <div class="hub-heading"><span>GHOST DUEL</span><h2>🎮 対戦する</h2><p>遊び方を選ぶだけ。初めてでも簡単に始められます。</p></div>
+          <div id="playEntry" class="play-entry">
+            <div id="playSavedDock"></div>
+            <button type="button" id="quickSolo" class="quick-play-btn primary"><span class="quick-play-emoji" aria-hidden="true">🤖</span><span><strong>CPUと遊ぶ</strong><small>1人で気軽に対戦</small></span><b aria-hidden="true">›</b></button>
+            <button type="button" id="quickHost" class="quick-play-btn"><span class="quick-play-emoji" aria-hidden="true">👥</span><span><strong>友達と遊ぶ</strong><small>部屋を作って招待</small></span><b aria-hidden="true">›</b></button>
+            <button type="button" id="quickJoin" class="quick-play-btn secondary"><span class="quick-play-emoji" aria-hidden="true">🔑</span><span><strong>部屋番号で参加</strong><small>教えてもらった番号を入力</small></span><b aria-hidden="true">›</b></button>
+            <button type="button" id="playTutorial" class="tutorial-link">📖 初めての方へ｜操作を体験する</button>
+          </div>
+          <div id="playFlow" class="hidden">
+            <div class="play-flow-header"><button id="playBack" type="button" class="secondary">← 戻る</button><span id="playFlowTitle">ゲームモードを選択</span></div>
+            <div id="playModeStage">
+              <p class="play-flow-step">STEP 1 / 2　ゲームモードを選ぼう</p>
+              <div id="playModeDock"></div>
+              <button id="playAdvance" class="primary full" type="button">次へ：対戦設定 ›</button>
+            </div>
+            <div id="playRulesStage" class="hidden">
+              <p class="play-flow-step">STEP 2 / 2　対戦の設定</p>
+              <div id="playRulesDock"></div>
+              <div id="playCpuDock"></div>
+              <div id="playLaunchDock"></div>
+              <p id="playSummary" class="play-summary"></p>
+            </div>
+            <div id="playJoinStage" class="hidden">
+              <p class="play-flow-step">友達の部屋に入ろう</p>
+              <p class="muted">部屋を作った人から8文字の部屋番号を教えてもらってください。ルールは部屋を作った側の設定が適用されます。</p>
+              <div id="playJoinDock"></div>
+            </div>
+            <div id="playMessageDock"></div>
+          </div>
         </div>
         <div id="tab-friends" class="panel hub-tab-panel hidden" role="tabpanel" aria-labelledby="navFriends" tabindex="0">
           <div class="hub-heading"><span>YOUR FRIENDS</span><h2>🤝 フレンド</h2><p>コードで友達を登録して、対戦に招待しよう。</p></div>
+          <div class="profile-card" id="playerProfileCard">
+            <span class="profile-avatar" aria-hidden="true">👻</span>
+            <div class="profile-content"><strong id="profileNickname">プレイヤー</strong>
+              <small id="profileFriendCode">コード：準備中</small>
+              <span id="profileRecord">0戦 0勝｜勝率 0%</span>
+            </div>
+          </div>
         </div>
         <div id="tab-stats" class="panel hub-tab-panel hidden" role="tabpanel" aria-labelledby="navStats" tabindex="0">
           <div class="hub-heading"><span>MATCH RECORDS</span><h2>🏆 戦績</h2><p>勝率や連勝記録、最近の対局を振り返ろう。</p></div>
+          <div class="mini-chart-card"><strong>📈 最近10試合の結果</strong><div id="statsTrend" class="stats-trend" role="img" aria-label="最近の対局結果"></div><small id="statsTrendNote">まだ対戦記録がありません。</small></div>
+          <div class="achievement-card"><strong>🏅 実績・称号</strong><p>対戦を重ねて実績を集めよう。</p><div id="achievementList" class="achievement-list"></div></div>
         </div>
         <div id="tab-settings" class="panel hub-tab-panel hidden" role="tabpanel" aria-labelledby="navSettings" tabindex="0">
           <div class="hub-heading"><span>PREFERENCES</span><h2>⚙️ 設定</h2><p>見た目やCPUの調整、アプリの更新はこちら。</p></div>
@@ -652,6 +803,7 @@
             <option value="scout">🔍 偵察モード｜1試合1回</option>
             <option value="transform">🎭 正体変化モード｜1試合1回</option>
           </select>
+          <div id="modeCards" class="mode-card-grid" role="group" aria-label="ゲームモードを選択"></div>
           <div class="rule-mode-card" id="gameModeCard" role="status" aria-live="polite">
             <strong id="gameModeTitle">👻 クラシック</strong>
             <p id="gameModeDescription">基本ルールの心理戦。特殊能力なし。</p>
@@ -718,6 +870,7 @@
       <section id="gamePanel" class="hidden">
         <div id="soloToolbar" class="toolbar hidden"><button id="soloLeave" type="button" class="secondary">← モード選択に戻る</button><span class="badge green">🤖 CPU対戦</span></div>
         <div class="game-tools">
+          <button id="gameTutorial" type="button" class="game-guide-btn secondary">❔ 操作</button>
           <span id="networkStatus" class="network-status" aria-live="polite">🟡 準備中</span>
           <button id="gameReconnect" type="button" class="secondary hidden" style="font-size:12px;padding:5px 9px">🔄 再接続</button>
           <details id="gameSettings" class="game-settings">
@@ -747,6 +900,10 @@
         </div>
         <div class="panel">
           <div id="ruleModeBadge" class="rule-mode-badge">👻 クラシックモード</div>
+          <div class="game-hud" id="matchHud" role="status" aria-live="polite">
+            <div><strong id="hudTurn">初期配置中</strong><small id="hudRound">ROUND 1</small></div>
+            <div class="hud-chips"><span id="hudMyCount">あなたの捕獲 0</span><span id="hudOtherCount">相手の捕獲 0</span></div>
+          </div>
           <div id="seriesScore" class="series-score" aria-live="polite"><span id="seriesScoreLabel">🏆 1試合</span><strong id="seriesScoreNumbers">0 – 0</strong><small id="seriesScoreHint">先手を決めています</small></div>
           <section id="initiativePanel" class="initiative-panel hidden" aria-labelledby="initiativeTitle">
             <h3 id="initiativeTitle">🎲 先手決めゲーム</h3>
@@ -813,6 +970,11 @@
             <p id="transformHint">上下左右に隣接する、自分の赤い駒と青い駒の正体を交換。手番は使わず、そのまま移動できます。</p>
             <button id="transformAction" type="button">🎭 正体を交換する（1回）</button>
           </section>
+          <section id="abilityPanel" class="ability-panel hidden" aria-label="特殊能力">
+            <div class="ability-label"><span>✨ 特殊能力</span><small id="abilityRemain">この試合に1回</small></div>
+            <button id="abilityButton" type="button" class="ability-button">✨ 特殊能力を使う</button>
+            <p id="abilityHint" class="ability-hint">タップして発動できます。</p>
+          </section>
           <div id="scoutReport" class="scout-report hidden" role="status" aria-live="polite">
             <strong id="scoutReportText"></strong>
             <button id="scoutReportClose" type="button" aria-label="偵察結果を閉じる">閉じる</button>
@@ -847,6 +1009,23 @@
     </div>
   </nav>
 
+
+  <div id="tutorialOverlay" class="tutorial-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialHeading">
+    <section class="tutorial-card">
+      <button id="tutorialClose" class="tutorial-close" type="button" aria-label="チュートリアルを閉じる">×</button>
+      <p id="tutorialProgress" class="tutorial-progress">はじめてのゴースト・デュエル</p>
+      <h2 id="tutorialHeading">👻 3つの基本操作</h2>
+      <p id="tutorialText">まずは駒をタップする練習をしましょう。</p>
+      <div class="tutorial-mini-board" role="group" aria-label="操作練習用のミニ盤面">
+        <button id="tutorialPiece" type="button" class="tutorial-mini-cell own" aria-label="自分の青い駒">👻<small>青</small></button>
+        <button id="tutorialTarget" type="button" class="tutorial-mini-cell target" aria-label="移動先のマス"><span id="tutorialTargetSymbol">○</span></button>
+        <div class="tutorial-mini-cell blocked" aria-hidden="true">👻<small>?</small></div>
+      </div>
+      <p id="tutorialFeedback" class="tutorial-feedback" aria-live="polite">左の自分のオバケをタップしてね。</p>
+      <button id="tutorialNext" class="primary full" type="button">次へ</button>
+      <button id="tutorialSkip" class="secondary full" type="button">あとで見る</button>
+    </section>
+  </div>
   <div id="captureFlash" class="capture-flash hidden" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="capture-card" tabindex="-1">
       <div id="captureSituation" class="capture-situation">つかまえた！</div>
