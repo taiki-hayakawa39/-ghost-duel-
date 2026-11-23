@@ -1767,6 +1767,48 @@
         li.textContent=when+' '+(row.win?'🏆 勝利':'敗北')+' ／ '+other+' ／ '+type+' ／ '+row.moves+'手';
         root.append(li);
       }
+      renderStatsEnhancements();
+    }
+    function renderStatsEnhancements(){
+      const recent=stats.recent.slice(0,10).reverse();
+      const chart=$('statsTrend');chart.replaceChildren();
+      for(let index=0;index<10;index++){
+        const entry=recent[index],bar=document.createElement('div');
+        bar.className='trend-bar'+(!entry?' empty':entry.win?'':' lose');
+        bar.style.height=entry?((entry.win?80:39)+(index%3)*4)+'%':'12px';
+        const label=!entry?'記録なし':(entry.win?'勝利':'敗北');
+        bar.setAttribute('title',(index+1)+'試合目：'+label);
+        bar.setAttribute('aria-label',(index+1)+'試合目：'+label);
+        chart.append(bar);
+      }
+      const wins=recent.filter(r=>r.win).length;
+      $('statsTrendNote').textContent=recent.length?
+        '直近'+recent.length+'戦：'+wins+'勝 '+(recent.length-wins)+'敗 ／ 緑は勝利・赤は敗北':
+        'まだ対戦記録がありません。初対戦をするとグラフが表示されます。';
+      chart.setAttribute('aria-label',$('statsTrendNote').textContent);
+      const achievements=[
+        ['👻','はじめの一歩','1試合プレイ',stats.games>=1],
+        ['🎮','常連プレイヤー','10試合プレイ',stats.games>=10],
+        ['🥇','5勝達成','通算5勝',stats.wins>=5],
+        ['🔥','連勝マスター','3連勝を達成',stats.bestStreak>=3],
+        ['🔵','青のハンター','青4体を捕獲して勝利',stats.winTypes.blue>=1],
+        ['🔴','赤の策士','赤4体を取らせて勝利',stats.winTypes.red>=1],
+        ['🚪','脱出の達人','青い駒の脱出で勝利',stats.winTypes.escape>=1],
+        ['🤝','対人戦デビュー','オンラインで1勝',stats.byMode.online.wins>=1]
+      ];
+      const list=$('achievementList');list.replaceChildren();
+      for(const [icon,name,condition,unlocked] of achievements){
+        const card=document.createElement('div');card.className='achievement-badge'+(unlocked?'':' locked');
+        const avatar=document.createElement('span');avatar.className='ach-icon';avatar.textContent=unlocked?icon:'🔒';
+        const textBox=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');
+        strong.textContent=name;small.textContent=unlocked?'達成済み':'条件：'+condition;
+        card.setAttribute('aria-label',name+'：'+(unlocked?'獲得済み':'未獲得。'+condition));
+        textBox.append(strong,small);card.append(avatar,textBox);list.append(card);
+      }
+      $('profileNickname').textContent=localName||'プレイヤー';
+      $('profileFriendCode').textContent='フレンドコード：'+(localId||'準備中');
+      $('profileRecord').textContent=stats.games+'戦 '+stats.wins+'勝 ／ 勝率 '+
+        Math.round(stats.wins*100/Math.max(1,stats.games))+'%';
     }
     function recordResult(){
       if(!game||game.phase!=='finished'||game.statsRecorded)return;
