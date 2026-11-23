@@ -653,6 +653,19 @@
     @media(prefers-reduced-motion:reduce){.hub-tab-panel:not(.hidden){animation:none!important}
       .cell.selected .ghost{transform:none!important}}
     body.effects-off .hub-tab-panel:not(.hidden){animation:none!important}
+
+    .connection-guide{margin:12px 0;padding:12px;border:1px solid #547a98;border-radius:13px;background:#1d374f}
+    .connection-guide strong{font-size:14px;color:#ffe1ad}
+    .connection-guide p{font-size:12px;color:#cdddec;line-height:1.65}
+    .connection-progress{display:flex;gap:5px;justify-content:space-between;flex-wrap:wrap}
+    .connection-progress>span{flex:1;min-width:92px;text-align:center;border:1px solid #5a718b;
+      background:#1b2f44;padding:6px 3px;border-radius:8px;font-size:10px;color:#aebed1}
+    .connection-progress>span.on{background:#34546a;color:#ffe2b0;border-color:#d5ab75}
+    .connection-assist{padding:10px 12px;margin:8px 0;border:1px solid #eda784;border-radius:10px;
+      color:#ffe4d4;background:#493b43;font-size:12px;line-height:1.7}
+    .game-guide-btn{min-height:40px}
+    .cell.valid:after{pointer-events:none}
+    .cell[aria-label*="移動可能"]{cursor:pointer}
   </style>
 </head>
 <body>
@@ -859,6 +872,11 @@
       <section id="roomPanel" class="panel hidden">
         <div class="topline"><div><span class="kicker">ROOM CODE</span><div id="roomText" class="code">--------</div></div><span id="connectBadge" class="badge">接続待機中</span></div>
         <div id="roomMessage" class="status" aria-live="polite">相手の接続を待っています。</div>
+        <div id="connectionGuide" class="connection-guide" role="status" aria-live="polite">
+          <strong id="connectionGuideTitle">🟡 通信の準備中…</strong>
+          <p id="connectionGuideText">部屋番号や招待URLを共有して、相手が接続するのを待ちましょう。</p>
+          <div class="connection-progress"><span id="connStep1" class="on">① 部屋を準備</span><span id="connStep2">② 友達と接続</span><span id="connStep3">③ 対戦開始</span></div>
+        </div>
         <div class="toolbar"><button id="copyLink" type="button" class="small secondary">🔗 招待URLをコピー</button><button id="shareLink" type="button" class="small secondary">共有</button><button id="leave" type="button" class="small danger">退出</button></div>
         <div id="shareHint" class="muted">相手には部屋番号か招待URLを伝えてください。</div>
         <div id="opponentStrip" class="opponent-strip hidden">
@@ -898,6 +916,7 @@
             <p class="muted">設定はこの端末に保存されます。小さいスマホでは盤面の最大サイズに制限があります。</p>
           </details>
         </div>
+        <div id="connectionAssist" class="connection-assist hidden" role="alert"></div>
         <div class="panel">
           <div id="ruleModeBadge" class="rule-mode-badge">👻 クラシックモード</div>
           <div class="game-hud" id="matchHud" role="status" aria-live="polite">
@@ -1986,7 +2005,19 @@
     }
     function notice(where,msg,isError=false){const e=$(where);e.textContent=msg;e.classList.remove('hidden','error','good');if(isError)e.classList.add('error');}
     function busy(v){$('create').disabled=$('join').disabled=v;}
-    function setRoomInfo(text){$('roomMessage').textContent=text;}
+    function setRoomInfo(text){
+      $('roomMessage').textContent=text;
+      const waiting=!connected,host=role===0;
+      $('connectionGuideTitle').textContent=waiting?
+        host?'📨 招待URLを友達に送ろう':'🔗 相手の部屋に接続中…':'✅ 友達と接続できました！';
+      $('connectionGuideText').textContent=waiting?
+        host?'下の「共有」か「招待URLをコピー」を押して、友達に送ってください。相手が参加すると自動でゲームが始まります。':
+          '部屋番号を確認しています。相手の端末で部屋が開いているか確認してください。':
+          '接続完了！ 画面の案内に従って先手を決め、オバケを配置してください。';
+      $('connStep1').classList.add('on');
+      $('connStep2').classList.toggle('on',connected);
+      $('connStep3').classList.toggle('on',!!game&&game.phase==='playing');
+    }
     function inviteUrl(){const u=new URL(location.href);u.searchParams.set('room',room);return u.href;}
     function history(msg){if(!game)return;game.history.unshift(msg);game.history.length=Math.min(game.history.length,18);}
 
@@ -2641,6 +2672,36 @@
           'まず自分の赤または青い駒をタップ。次に金色に光る異なる色の駒を選択します。':
         '上下左右に隣接する自分の赤と青を交換。位置は動かさず、手番も消費しません。そのまま移動できます。';
     }
+
+    function renderAbilityUI(){
+      const mode=game.match?.mode;
+      const enabled=mode==='scout'||mode==='transform';
+      $('abilityPanel').classList.toggle('hidden',!enabled);
+      if(!enabled)return;
+      const scout=mode==='scout';
+      const used=scout?!!game.scoutUsed?.[role]:!!game.transformUsed?.[role];
+      const active=scout?scoutMode:transformMode;
+      const original=scout?$('scoutAction'):$('transformAction');
+      $('abilityButton').disabled=original.disabled;
+      $('abilityButton').setAttribute('aria-pressed',active?'true':'false');
+      $('abilityButton').textContent=original.textContent;
+      $('abilityRemain').textContent=used?'使用済み':'この試合 残り1回';
+      $('abilityHint').textContent=(scout?$('scoutHint'):$('transformHint')).textContent;
+    }
+    function renderGameHud(phaseText){
+      $('hudTurn').textContent=phaseText;
+      $('hudRound').textContent='ROUND '+game.round+
+        ' ／ '+(GAME_MODES[game.match?.mode]||GAME_MODES.classic).label;
+      const own=game.hands?.[role]||[],other=game.hands?.[1-role]||[];
+      const count=pieces=>'🔵 '+pieces.filter(p=>p.kind==='good').length+
+        '  🔴 '+pieces.filter(p=>p.kind==='bad').length;
+      $('hudMyCount').textContent='あなたの捕獲 '+count(own);
+      $('hudOtherCount').textContent=(solo?'CPU':'相手')+'の捕獲 '+count(other);
+      const warning=!solo&&(!connected||game.phase==='disconnected');
+      $('connectionAssist').classList.toggle('hidden',!warning);
+      if(warning)$('connectionAssist').textContent=
+        '⚠️ 相手との接続を確認できません。駒は動かさず、上の「再接続」を押して通信の復旧を試してください。';
+    }
     function validScout(m,by){
       if(!game||game.match?.mode!=='scout'||game.phase!=='playing'
          ||game.turn!==by||game.scoutUsed?.[by]||m.t!=='scout'
@@ -3157,6 +3218,7 @@
       updateMatchPresentation();
       renderScoutUI();
       renderTransformUI();
+      renderAbilityUI();
       const last=game.lastMove;
       $('lastMoveBar').classList.toggle('hidden',!last||game.phase==='setup');
       $('replayLast').disabled=!last;
@@ -3164,6 +3226,7 @@
       renderReview();
 $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=solo?'CPU・'+CPU_STYLE_LABELS[cpuStyle]:'あなたは P'+(role+1);$('opponentHandTitle').textContent=solo?'CPUの持ち駒':'相手の持ち駒';renderHand('opponentHand',game.hands[1-role]);renderHand('myHand',game.hands[role]);
       const myturn=game.phase==='playing'&&game.turn===role;const phaseText=game.phase==='initiative'?'🎲 先手を決めよう！':game.phase==='setup'?'初期配置中':game.phase==='playing'?(myturn?'あなたの手番':solo?'CPUが考え中…':'相手の手番'):game.phase==='finished'?(game.winner===role?'🎉 あなたの勝ち！':'相手の勝ち'):'接続が切れました';$('turnText').textContent=phaseText;
+      renderGameHud(phaseText);
       const ownReady=game.ready[role];$('shuffle').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('ready').classList.toggle('hidden',game.phase!=='setup'||showFirstReveal());$('shuffle').disabled=game.phase!=='setup'||ownReady;$('ready').disabled=game.phase!=='setup'||ownReady;$('ready').textContent=ownReady?'配置確定済み ✓':'配置を確定';$('escape').classList.toggle('hidden',!(myturn&&selectedMine()&&game.mySecrets[selection]?.kind==='good'&&isExit(selectedMine())&&!movePending&&!scoutPending&&!scoutMode&&!transformMode&&!captureInProgress()));$('restart').classList.toggle('hidden',game.phase!=='finished');$('restart').textContent=solo?'CPUともう一戦':'👻 再戦する';
       if(game.phase==='initiative'){
         $('gameHint').textContent='先手決めゲームで勝った側が、この試合の1手目を動かせます。';
@@ -3240,7 +3303,12 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           cell.append(victim);
         }
       }
-      const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''): '空きマス';cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}`);cell.dataset.pieceId=p?.id||'';cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
+      const item=p?(p.owner===role?'自分の':'相手の')+'駒'+(p.owner===role?(game.mySecrets[p.id]?.kind==='good'?'青':'赤'):''):'空きマス';
+      const action=cell.classList.contains('scout-target')?'、偵察可能':
+        cell.classList.contains('transform-target')?'、正体交換可能':
+        cell.classList.contains('capture-target')?'、捕獲可能':
+        cell.classList.contains('valid')?'、移動可能':'';
+      cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}${action}`);cell.dataset.pieceId=p?.id||'';cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
       $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}
       animateMovedPiece();
       persistGame();
@@ -3287,6 +3355,10 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('replayLast').addEventListener('click',replayLastMove);
     $('scoutAction').addEventListener('click',toggleScoutMode);
     $('transformAction').addEventListener('click',toggleTransformMode);
+    $('abilityButton').addEventListener('click',()=>{
+      if(game?.match?.mode==='scout')toggleScoutMode();
+      else if(game?.match?.mode==='transform')toggleTransformMode();
+    });
     $('scoutReportClose').addEventListener('click',()=>{scoutReport=null;renderScoutUI();});
     $('initiativeDraw').addEventListener('click',submitFirstDraw);
     $('initiativeSkipAnimation').addEventListener('click',skipDiceAnimation);
