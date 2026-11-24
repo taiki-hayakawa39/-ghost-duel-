@@ -708,6 +708,19 @@
       background:#1d4a57;color:#fafffd;font-size:10px;font-weight:900;pointer-events:none}
     .cell.review-from::before{content:"前"}
     .cell.review-to::before{content:"後"}
+
+    /* アプリ内のフレンド招待（双方がアプリを開いているときに表示） */
+    .friend-invite-overlay{position:fixed;z-index:2800;inset:0;display:grid;place-items:center;
+      padding:18px;background:rgba(5,14,29,.88);backdrop-filter:blur(5px)}
+    .friend-invite-card{width:min(100%,385px);border:2px solid #f1d58f;border-radius:22px;
+      background:linear-gradient(145deg,#26445d,#14293f);box-shadow:0 18px 60px #020817bb;
+      padding:25px 20px;text-align:center;color:#f4f8ff}
+    .friend-invite-icon{font-size:46px;line-height:1.25;margin:0 0 7px}
+    .friend-invite-card h2{font-size:24px;margin:7px 0;color:#ffe3a2}
+    .friend-invite-card p{font-size:15px;line-height:1.6;overflow-wrap:anywhere}
+    .friend-invite-actions{display:grid;gap:9px;margin-top:20px}
+    .friend-invite-actions button{min-height:52px;font-size:16px;font-weight:900}
+    .friend-invite-status{font-size:12px;line-height:1.6;color:#c8e4f0;margin:10px 0}
   </style>
 </head>
 <body>
@@ -813,8 +826,9 @@
             <button id="addFriendCode" type="button" class="primary">登録</button>
           </div>
           <p id="friendMessage" class="friend-hint" aria-live="polite"></p>
+          <p id="friendInviteStatus" class="friend-invite-status" role="status" aria-live="polite">📡 招待の受信を準備中…</p>
           <div id="friendList" aria-label="フレンド一覧"></div>
-          <p class="friend-hint">登録はこの端末内のみ。フレンドのオンライン状態や通知は確認できません。招待ボタンからURLを共有してください。</p>
+          <p class="friend-hint">フレンド同士がアプリを開いている間は、招待が相手の画面に直接表示されます。アプリを閉じている相手には通知できません。届かないときは招待URLを共有してください。</p>
         </details>
         <details id="statsPanel" class="stats-panel">
           <summary>🏆 あなたの対戦成績 <span id="statsCompact">対戦0回</span></summary>
@@ -1084,6 +1098,17 @@
   </nav>
 
 
+  <div id="friendInviteOverlay" class="friend-invite-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="friendInviteHeading" aria-describedby="friendInviteDescription">
+    <section class="friend-invite-card">
+      <p class="friend-invite-icon" aria-hidden="true">💌👻</p>
+      <h2 id="friendInviteHeading">対戦に招待されました！</h2>
+      <p id="friendInviteDescription">フレンドから対戦のお誘いが届いています。</p>
+      <div class="friend-invite-actions">
+        <button id="friendInviteAccept" type="button" class="primary">🚪 入室する</button>
+        <button id="friendInviteDecline" type="button" class="secondary">今回は断る</button>
+      </div>
+    </section>
+  </div>
   <div id="tutorialOverlay" class="tutorial-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialHeading">
     <section class="tutorial-card">
       <button id="tutorialClose" class="tutorial-close" type="button" aria-label="チュートリアルを閉じる">×</button>
@@ -1288,6 +1313,9 @@
     const CPU_STYLE_LABELS={balanced:'バランス型',aggressive:'攻撃型',careful:'慎重型',tricky:'だまし型'};
     const FRIEND_RE=/^[A-HJ-NP-Z2-9]{10}$/;
     let localId='',localName='プレイヤー',friends=[],opponentProfile=null,inviteFriendId=null;
+    let friendPeer=null,friendPeerReady=false,pendingFriendInvite=null,outgoingFriendInviteConn=null,outgoingFriendInviteKey='';
+    let friendInviteFocusReturn=null;
+    const FRIEND_PEER_PREFIX='ghostduel-friend-v1-',FRIEND_INVITE_TTL=5*60*1000;
     let rematchLocal=false,rematchRemote=false,rematchStarted=false,rematchMessage='';
     let reactionTimer=null,lastReactionSent=0,lastReactionReceived=0;
     let boardSize='normal',boardColor='night',effectsMode='on',ghostSkin='classic',cpuStyle='balanced';
@@ -2126,25 +2154,156 @@
       if(current)return;
       storeFriend(opponentProfile.id,opponentProfile.name);
     }
+
+    // フレンドコードごとに招待専用のPeer接続を維持する。対戦用のPeerとは独立。
+    function startFriendInviteReceiver(){
+      const status=$('friendInviteStatus');
+      if(!scriptOk||!window.crypto?.getRandomValues){
+        status.textContent='⚠️ アプリ内招待を受信できません。ネット接続を確認してください。';return;
+      }
+      try{friendPeer=new Peer(FRIEND_PEER_PREFIX+localId,{debug:0});}
+      catch{status.textContent='⚠️ 招待の受信を開始できませんでした。';return;}
+      friendPeer.on('open',()=>{
+        friendPeerReady=true;
+        status.textContent='🟢 アプリ内招待を受信できます（アプリを開いている間）';
+        if(inviteFriendId&&role===0&&peerOpen)sendFriendInvite(friends.find(f=>f.id===inviteFriendId));
+      });
+      friendPeer.on('connection',c=>{
+        c.on('data',m=>{
+          if(!m||m.t!=='friend-invite')return;
+          const friend=friends.find(f=>f.id===m.from);
+          const safeRoom=typeof m.room==='string'&&CODE_RE.test(m.room);
+          const expires=Number(m.expires);
+          const valid=friend&&c.peer===FRIEND_PEER_PREFIX+m.from
+            &&m.to===localId&&safeRoom&&Number.isSafeInteger(expires)
+            &&Date.now()<expires&&expires<=Date.now()+FRIEND_INVITE_TTL+15000;
+          if(!valid){if(c.open)c.send({t:'invite-response',status:'unavailable'});return;}
+          if(role!==-1||$('home').classList.contains('hidden')){
+            if(c.open)c.send({t:'invite-response',status:'busy'});return;
+          }
+          if(pendingFriendInvite){
+            if(c.open)c.send({t:'invite-response',status:'busy'});return;
+          }
+          pendingFriendInvite={friend,room:m.room,expires,conn:c};
+          $('friendInviteDescription').textContent=friend.name+'さんから対戦のお誘いが届いています。参加しますか？';
+          friendInviteFocusReturn=document.activeElement;
+          $('friendInviteOverlay').classList.remove('hidden');
+          $('friendInviteAccept').disabled=false;
+          $('friendInviteAccept').focus();
+          if(c.open)c.send({t:'invite-response',status:'delivered'});
+        });
+        c.on('error',()=>{});
+      });
+      friendPeer.on('disconnected',()=>{
+        friendPeerReady=false;
+        status.textContent='🟠 招待の接続が切れました。再接続しています…';
+        try{if(!friendPeer.destroyed)friendPeer.reconnect();}catch{}
+      });
+      friendPeer.on('error',err=>{
+        if(err?.type==='peer-unavailable'){
+          if(outgoingFriendInviteConn)showFriendInviteSendingStatus('相手がアプリを開いていない可能性があります。招待URLを共有してください。');
+          return;
+        }
+        if(err?.type==='unavailable-id'){
+          friendPeerReady=false;
+          status.textContent='⚠️ 同じフレンドコードの別タブが開いているようです。片方を閉じてください。';
+        }else if(err?.type==='network'){
+          friendPeerReady=false;
+          status.textContent='🟠 通信サーバーにつながりません。ネット接続を確認してください。';
+        }
+      });
+      window.addEventListener('online',()=>{
+        if(friendPeer&&!friendPeer.destroyed&&friendPeer.disconnected){
+          try{friendPeer.reconnect();}catch{}
+        }
+      });
+    }
+    function showFriendInviteSendingStatus(message){
+      if(role===0&&room&&inviteFriendId)$('shareHint').textContent=message+'（部屋番号：'+room+'）';
+    }
+    function sendFriendInvite(friend){
+      if(!friend||inviteFriendId!==friend.id||role!==0||!room||!peerOpen)return;
+      if(!friendPeer||!friendPeerReady){
+        showFriendInviteSendingStatus('招待の通信を準備中です。届かない場合は招待URLを共有してください。');
+        return;
+      }
+      const key=room+':'+friend.id;
+      if(outgoingFriendInviteKey===key)return;
+      outgoingFriendInviteKey=key;
+      if(outgoingFriendInviteConn){try{outgoingFriendInviteConn.close();}catch{}}
+      const c=friendPeer.connect(FRIEND_PEER_PREFIX+friend.id,{serialization:'json',reliable:true});
+      outgoingFriendInviteConn=c;
+      showFriendInviteSendingStatus(friend.name+'さんに招待を送信中…');
+      let confirmed=false;
+      const timeout=setTimeout(()=>{
+        if(c!==outgoingFriendInviteConn||confirmed)return;
+        showFriendInviteSendingStatus('招待が届いたか確認できません。相手のアプリが開いているか確認するか、招待URLを共有してください。');
+        try{c.close();}catch{}
+      },10000);
+      c.on('open',()=>{
+        if(c!==outgoingFriendInviteConn)return;
+        c.send({t:'friend-invite',from:localId,to:friend.id,room,
+          expires:Date.now()+FRIEND_INVITE_TTL});
+      });
+      c.on('data',m=>{
+        if(c!==outgoingFriendInviteConn||!m||m.t!=='invite-response')return;
+        confirmed=true;clearTimeout(timeout);
+        const states={
+          delivered:friend.name+'さんの画面に招待を表示しました。「入室する」を押すのを待っています。',
+          accepted:friend.name+'さんが入室を選びました。接続を待っています。',
+          declined:friend.name+'さんが今回は招待を断りました。',
+          busy:friend.name+'さんは別の対戦中か、別の招待を確認中です。',
+          unavailable:friend.name+'さんはこの端末をフレンド登録していないか、招待を受信できません。'
+        };
+        if(states[m.status])showFriendInviteSendingStatus(states[m.status]);
+        if(m.status!=='delivered'){try{c.close();}catch{}}
+      });
+      c.on('error',()=>{
+        clearTimeout(timeout);
+        if(c===outgoingFriendInviteConn&&!confirmed)
+          showFriendInviteSendingStatus('相手に直接招待できませんでした。アプリを開いてもらうか、招待URLを共有してください。');
+      });
+      c.on('close',()=>{clearTimeout(timeout);if(outgoingFriendInviteConn===c)outgoingFriendInviteConn=null;});
+    }
+    function dismissFriendInvite(status='declined'){
+      const invite=pendingFriendInvite;
+      if(!invite)return;
+      pendingFriendInvite=null;
+      $('friendInviteOverlay').classList.add('hidden');
+      if(invite.conn?.open){
+        invite.conn.send({t:'invite-response',status});
+        setTimeout(()=>{try{invite.conn.close();}catch{}},250);
+      }
+      if(friendInviteFocusReturn?.isConnected&&typeof friendInviteFocusReturn.focus==='function')
+        friendInviteFocusReturn.focus();
+      friendInviteFocusReturn=null;
+    }
+    function acceptFriendInvite(){
+      const invite=pendingFriendInvite;
+      if(!invite)return;
+      if(Date.now()>=invite.expires){
+        $('friendInviteDescription').textContent='招待の有効期限が切れました。もう一度招待してもらってください。';
+        $('friendInviteAccept').disabled=true;
+        return;
+      }
+      $('joinCode').value=invite.room;
+      join();
+      if(role!==1||room!==invite.room)return; // 保存データの確認でキャンセルしたときは残す
+      dismissFriendInvite('accepted');
+    }
     function inviteSavedFriend(friend){
-      if(!FRIEND_RE.test(friend.id))return;
+      if(!friend||!FRIEND_RE.test(friend.id))return;
       if(!scriptOk||!window.crypto?.subtle){
         $('friendMessage').textContent='オンライン対戦の通信機能を確認してください。';return;
       }
+      const previousRoom=room;
       inviteFriendId=friend.id;
       create();
-      if(!room)return;
-      const url=inviteUrl();
-      $('shareHint').textContent=friend.name+'さんに招待URLを送ってください。部屋番号：'+room;
-      const notifyFailure=()=>{$('shareHint').textContent=friend.name+'さんにURLを送ってください。コピーできない場合は「共有」を押してください。部屋番号：'+room;};
-      if(navigator.share){
-        navigator.share({title:'ゴースト・デュエル',text:friend.name+'さん、ゴースト・デュエルで対戦しよう！',url})
-          .catch(err=>{if(err?.name!=='AbortError')notifyFailure();});
-      }else if(navigator.clipboard?.writeText){
-        navigator.clipboard.writeText(url).then(()=>{
-          $('shareHint').textContent=friend.name+'さんへの招待URLをコピーしました。メッセージで送ってください。';
-        }).catch(notifyFailure);
-      }else notifyFailure();
+      if(role!==0||!room||room===previousRoom){
+        inviteFriendId=null;return;
+      }
+      showFriendInviteSendingStatus(friend.name+'さんへの招待を準備中です。相手もアプリを開いてください。');
+      if(peerOpen)sendFriendInvite(friend);
     }
     function notice(where,msg,isError=false){const e=$(where);e.textContent=msg;e.classList.remove('hidden','error','good');if(isError)e.classList.add('error');}
     function busy(v){$('create').disabled=$('join').disabled=v;}
@@ -2152,9 +2311,9 @@
       $('roomMessage').textContent=text;
       const waiting=!connected,host=role===0;
       $('connectionGuideTitle').textContent=waiting?
-        host?'📨 招待URLを友達に送ろう':'🔗 相手の部屋に接続中…':'✅ 友達と接続できました！';
+        host?(inviteFriendId?'💌 フレンドを招待中…':'📨 招待URLを友達に送ろう'):'🔗 相手の部屋に接続中…':'✅ 友達と接続できました！';
       $('connectionGuideText').textContent=waiting?
-        host?'下の「共有」か「招待URLをコピー」を押して、友達に送ってください。相手が参加すると自動でゲームが始まります。':
+        host?(inviteFriendId?'相手のアプリに招待が届きます。「入室する」を押すと対戦開始。届かない場合は下の共有ボタンをご利用ください。':'下の「共有」か「招待URLをコピー」を押して、友達に送ってください。相手が参加すると自動でゲームが始まります。'):
           '部屋番号を確認しています。相手の端末で部屋が開いているか確認してください。':
           '接続完了！ 画面の案内に従って先手を決め、オバケを配置してください。';
       $('connStep1').classList.add('on');
@@ -2608,7 +2767,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ reviewIndex=null;clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs();resetPlayFlow(); }
+    function teardown(){ if(outgoingFriendInviteConn){try{outgoingFriendInviteConn.close();}catch{}}outgoingFriendInviteConn=null;outgoingFriendInviteKey='';reviewIndex=null;clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs();resetPlayFlow(); }
     function enterRoom(){ $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function confirmNewMatchWithSaved(){
       if(!readSaved())return true;
@@ -2627,7 +2786,7 @@
       $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
       startRound(1);
     }
-    function create(){if(!confirmNewMatchWithSaved())return;opponentProfile=null;updateOpponentFriendUI();if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
+    function create(){if(!confirmNewMatchWithSaved())return;opponentProfile=null;updateOpponentFriendUI();if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo(inviteFriendId?'相手の入室を待っています。':'相手の接続を待っています。招待URLを送ってください。');if(inviteFriendId)sendFriendInvite(friends.find(f=>f.id===inviteFriendId));});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
     function join(){if(!confirmNewMatchWithSaved())return;inviteFriendId=null;opponentProfile=null;updateOpponentFriendUI();const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){
@@ -3621,6 +3780,17 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('resultAddFriend').addEventListener('click',addOpponentFriend);
     $('addCurrentFriend').addEventListener('click',addOpponentFriend);
     loadFriendIdentity();
+    startFriendInviteReceiver();
+    $('friendInviteAccept').addEventListener('click',acceptFriendInvite);
+    $('friendInviteDecline').addEventListener('click',()=>dismissFriendInvite());
+    $('friendInviteOverlay').addEventListener('keydown',e=>{
+      if(e.key==='Escape'){e.preventDefault();dismissFriendInvite();}
+      if(e.key==='Tab'){
+        const first=$('friendInviteAccept'),last=$('friendInviteDecline');
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+    });
     $('saveNickname').addEventListener('click',()=>{
       localName=normalizeFriendName($('myNickname').value)||'プレイヤー';
       $('myNickname').value=localName;
