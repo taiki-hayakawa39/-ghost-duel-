@@ -667,6 +667,27 @@
     .game-guide-btn{min-height:40px}
     .cell.valid:after{pointer-events:none}
     .cell[aria-label*="移動可能"]{cursor:pointer}
+
+    .instant-cpu{width:100%;min-height:70px;display:flex;gap:11px;align-items:center;
+      padding:12px 14px;margin:0;border:2px solid #efc784;border-radius:15px;background:
+      linear-gradient(120deg,#4a533f,#2c464b);text-align:left;color:#fff8e8}
+    .instant-cpu-icon{font-size:27px}
+    .instant-cpu>span:nth-child(2){display:grid;gap:3px;flex:1}
+    .instant-cpu strong{font-size:15px;color:#ffdf9e}
+    .instant-cpu small{font-size:11px;color:#dbe7e6;line-height:1.5}
+    .instant-cpu>span:last-child{font-size:18px;color:#f6d9aa}
+    .board-quick-actions{display:flex;align-items:center;gap:7px;justify-content:space-between;
+      padding:7px 8px;margin:5px 0 8px;border:1px solid #7f96a9;border-radius:10px;
+      background:#1c3850}
+    .board-quick-actions>span{min-width:0;flex:1;font-size:12px;line-height:1.45;
+      font-weight:700;color:#e2edfa}
+    .board-quick-actions button{flex-shrink:0;min-height:39px;padding:7px 10px;font-size:12px}
+    .board-quick-actions #quickEscape{font-size:13px;min-height:42px}
+    .cell.capture-target:after{content:"×";position:absolute;top:-6px;right:-5px;
+      z-index:5;border-radius:8px;background:#b94b59;color:white;border:1px solid #ffd2d3;
+      font-size:17px;line-height:1;padding:1px 6px;pointer-events:none}
+    @media(max-width:370px){.board-quick-actions{gap:3px;padding:6px 5px}
+      .board-quick-actions button{padding:6px 8px;font-size:11px}}
   </style>
 </head>
 <body>
@@ -679,6 +700,7 @@
           <div class="hub-heading"><span>GHOST DUEL</span><h2>🎮 対戦する</h2><p>遊び方を選ぶだけ。初めてでも簡単に始められます。</p></div>
           <div id="playEntry" class="play-entry">
             <div id="playSavedDock"></div>
+            <button type="button" id="instantCpu" class="instant-cpu"><span class="instant-cpu-icon" aria-hidden="true">⚡</span><span><strong>前回の設定ですぐCPU戦</strong><small id="instantCpuDescription">ワンタップで対戦を開始</small></span><span aria-hidden="true">▶</span></button>
             <button type="button" id="quickSolo" class="quick-play-btn primary"><span class="quick-play-emoji" aria-hidden="true">🤖</span><span><strong>CPUと遊ぶ</strong><small>1人で気軽に対戦</small></span><b aria-hidden="true">›</b></button>
             <button type="button" id="quickHost" class="quick-play-btn"><span class="quick-play-emoji" aria-hidden="true">👥</span><span><strong>友達と遊ぶ</strong><small>部屋を作って招待</small></span><b aria-hidden="true">›</b></button>
             <button type="button" id="quickJoin" class="quick-play-btn secondary"><span class="quick-play-emoji" aria-hidden="true">🔑</span><span><strong>部屋番号で参加</strong><small>教えてもらった番号を入力</small></span><b aria-hidden="true">›</b></button>
@@ -952,6 +974,11 @@
           <div id="starterBanner" class="starter-banner hidden" role="status" aria-live="polite"></div>
           <div class="topline"><div><span class="kicker" id="roundLabel">ROUND 1</span><div id="turnText" class="turn" aria-live="polite">初期配置中</div></div><span id="playerBadge" class="badge green">あなたは P1</span></div>
           <p id="gameHint" class="note">自分の駒を2つ選ぶと赤青を入れ替えられます。</p>
+          <div id="boardQuickActions" class="board-quick-actions hidden">
+            <span id="boardSelectionText" aria-live="polite">駒を選択してください</span>
+            <button id="quickEscape" type="button" class="primary hidden">🚪 脱出する</button>
+            <button id="boardUnselect" type="button" class="secondary">選択解除 ✕</button>
+          </div>
           <div id="lastMoveBar" class="last-move-bar hidden"><span id="lastMoveText">まだ動きはありません</span><button id="replayLast" type="button" class="secondary">👁 直前の手</button></div>
           <div class="arena">
             <div class="prize-zone" aria-label="相手の持ち駒">
@@ -1380,7 +1407,7 @@
         const info=document.createElement('small');info.textContent=mode.description;
         button.append(title,info);
         button.addEventListener('click',()=>{
-          $('gameMode').value=key;setGameModeDescription();renderModeCards();updatePlaySummary();
+          $('gameMode').value=key;setGameModeDescription();renderModeCards();updatePlaySummary();updateInstantCpuLabel();
         });
         root.append(button);
       }
@@ -1416,6 +1443,13 @@
       if(playStep==='rules'){playStep='mode';renderPlayFlow();}
       else resetPlayFlow();
     }
+
+    function updateInstantCpuLabel(){
+      const name=(GAME_MODES[$('gameMode').value]||GAME_MODES.classic).label;
+      const difficulty=$('cpuDifficulty').selectedOptions?.[0]?.textContent||
+        ({easy:'初級',normal:'中級',hard:'上級'}[$('cpuDifficulty').value]||'標準');
+      $('instantCpuDescription').textContent=name+' ／ CPU：'+difficulty;
+    }
     function setupPlayJourney(){
       const play=$('tab-play');
       $('playSavedDock').append($('savedRoom'));
@@ -1431,6 +1465,7 @@
         legacy.append(node);
       }
       play.append(legacy);
+      $('instantCpu').addEventListener('click',startSolo);
       $('quickSolo').addEventListener('click',()=>openPlayFlow('solo'));
       $('quickHost').addEventListener('click',()=>openPlayFlow('host'));
       $('quickJoin').addEventListener('click',()=>openPlayFlow('join'));
@@ -1438,7 +1473,9 @@
       $('playAdvance').addEventListener('click',()=>{playStep='rules';renderPlayFlow();});
       $('firstMode').addEventListener('change',updatePlaySummary);
       $('seriesFormat').addEventListener('change',updatePlaySummary);
-      renderModeCards();resetPlayFlow();
+      $('cpuDifficulty').addEventListener('change',updateInstantCpuLabel);
+      $('gameMode').addEventListener('change',updateInstantCpuLabel);
+      renderModeCards();updateInstantCpuLabel();resetPlayFlow();
     }
 
     let tutorialStep=0,tutorialReturnFocus=null;
@@ -3197,6 +3234,11 @@
         if(p&&Math.abs(p.x-x)+Math.abs(p.y-y)===1&&(!target||target.owner!==role)){
           attemptMove(p.id,x,y);return;
         }
+        if(!target||target.owner!==role){
+          // 誤タップで選択を消さず、次の操作を伝える。
+          $('moveMessage').textContent='そのマスには移動できません。黄色の丸か、×印の相手をタップしてください。';
+          return;
+        }
       }
       selection=target?.owner===role?target.id:null;render();}
     function localToGlobal(cx,cy){return role===0?{x:cx,y:cy}:{x:5-cx,y:5-cy};}
@@ -3281,6 +3323,31 @@
       }
     }
 
+
+    function renderBoardQuickActions(){
+      const own=selectedMine();
+      const visible=game.phase==='playing'&&game.turn===role&&!!own&&connected
+        &&!movePending&&!scoutPending;
+      $('boardQuickActions').classList.toggle('hidden',!visible);
+      if(!visible)return;
+      if(transformMode){
+        const options=game.pieces.filter(p=>p.owner===role&&p.id!==own.id
+          &&Math.abs(p.x-own.x)+Math.abs(p.y-own.y)===1
+          &&game.mySecrets[p.id]?.kind!==game.mySecrets[own.id]?.kind);
+        $('boardSelectionText').textContent='🎭 '+options.length+'体と正体交換できます';
+      }else if(scoutMode){
+        $('boardSelectionText').textContent='🔍 周囲にいる相手を選んでください';
+      }else{
+        const dirs=[[0,1],[0,-1],[1,0],[-1,0]];
+        const targets=dirs.map(([dx,dy])=>({x:own.x+dx,y:own.y+dy}))
+          .filter(p=>p.x>=0&&p.x<6&&p.y>=0&&p.y<6)
+          .filter(p=>!at(p.x,p.y)||at(p.x,p.y).owner!==role);
+        $('boardSelectionText').textContent='👻 移動先 '+targets.length+'マス'+
+          (targets.some(p=>at(p.x,p.y)?.owner===1-role)?'（×は捕獲）':'');
+      }
+      const canEscape=!transformMode&&!scoutMode&&game.mySecrets[own.id]?.kind==='good'&&isExit(own);
+      $('quickEscape').classList.toggle('hidden',!canEscape);
+    }
     function render(){if(!game)return;
       document.body.classList.add('game-active');
       const network=$('networkStatus');
@@ -3320,6 +3387,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
           myturn&&game.lastTransform?.owner===role?'🎭 正体を交換しました！ 続けて駒を動かすか脱出してください。':
           myturn?'動かす駒をタップしてから、1マス先をタップしてください。':'相手が考えています。';
       }
+      renderBoardQuickActions();
       if(game.phase==='finished'){$('gameHint').textContent=game.reason;$('moveMessage').textContent=(game.winner===role?'勝利！ ':'敗北… ')+game.reason+(game.opponentVerified?(solo?' ／ CPUの駒の色を公開しました':' ／ 相手の駒の色を検証済み'):' ／ 相手の駒の色を確認中');}
       if(game.phase==='disconnected'){$('gameHint').textContent='相手との通信が切れたため手番を進められません。';$('moveMessage').textContent='「退出」を押して新しい部屋を作成してください。';}
       const intro=captureIntro&&captureIntro.round===game.round?captureIntro:null;
@@ -3430,6 +3498,8 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('replayLast').addEventListener('click',replayLastMove);
     $('scoutAction').addEventListener('click',toggleScoutMode);
     $('transformAction').addEventListener('click',toggleTransformMode);
+    $('quickEscape').addEventListener('click',attemptEscape);
+    $('boardUnselect').addEventListener('click',()=>{selection=null;render();});
     $('abilityButton').addEventListener('click',()=>{
       if(game?.match?.mode==='scout')toggleScoutMode();
       else if(game?.match?.mode==='transform')toggleTransformMode();
