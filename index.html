@@ -688,6 +688,26 @@
       font-size:17px;line-height:1;padding:1px 6px;pointer-events:none}
     @media(max-width:370px){.board-quick-actions{gap:3px;padding:6px 5px}
       .board-quick-actions button{padding:6px 8px;font-size:11px}}
+
+    .review-nav{margin:9px 0;padding:11px 10px;border-radius:12px;border:1px solid #6897b2;
+      background:#1d394e}
+    .review-nav-top{display:flex;justify-content:space-between;gap:7px;align-items:center}
+    .review-nav-top strong{font-size:13px;color:#ffe3ac}
+    .review-nav-top button{min-height:36px;padding:5px 11px;font-size:12px}
+    .review-nav-buttons{display:flex;gap:7px;justify-content:space-between;align-items:center;margin-top:10px}
+    .review-nav-buttons button{min-height:44px;padding:7px 10px;flex:1;font-size:12px}
+    .review-nav-buttons span{min-width:83px;text-align:center;font-size:12px;font-weight:900;color:#eaf6ff}
+    .review-nav-hint{font-size:11px;line-height:1.6;color:#c2d7e5;margin:8px 0 0}
+    .review-list-button{width:100%;min-height:39px;padding:8px 9px;text-align:left;
+      border-radius:8px;font-size:12px;font-weight:650;line-height:1.6;background:#203951}
+    .review-list-button[aria-current="step"]{border-color:#f2d498;background:#3a445c;color:#ffebb5}
+    .cell.review-from{outline:3px dashed #f5e1b7!important;outline-offset:-3px}
+    .cell.review-to{outline:4px solid #80e6be!important;outline-offset:-4px}
+    .cell.review-from::before,.cell.review-to::before{position:absolute;bottom:-5px;left:-5px;
+      z-index:9;padding:2px 5px;border-radius:5px;border:1px solid #c6eff4;
+      background:#1d4a57;color:#fafffd;font-size:10px;font-weight:900;pointer-events:none}
+    .cell.review-from::before{content:"前"}
+    .cell.review-to::before{content:"後"}
   </style>
 </head>
 <body>
@@ -945,6 +965,13 @@
           <div class="game-hud" id="matchHud" role="status" aria-live="polite">
             <div><strong id="hudTurn">初期配置中</strong><small id="hudRound">ROUND 1</small></div>
             <div class="hud-chips"><span id="hudMyCount">あなたの捕獲 0</span><span id="hudOtherCount">相手の捕獲 0</span></div>
+          </div>
+          <div id="reviewNav" class="review-nav hidden" aria-label="対局の手順を確認">
+            <div class="review-nav-top"><strong>🔎 決着までの手を確認</strong><button id="reviewReset" class="secondary" type="button">閉じる</button></div>
+            <div class="review-nav-buttons"><button id="reviewPrev" type="button" class="secondary">◀ 前の手</button>
+              <span id="reviewStepLabel" aria-live="polite">手順を選択</span>
+              <button id="reviewNext" type="button" class="secondary">次の手 ▶</button></div>
+            <p id="reviewHint" class="review-nav-hint">最終盤面上に、この手の移動元・移動先を示します。当時の盤面には戻りません。</p>
           </div>
           <div id="seriesScore" class="series-score" aria-live="polite"><span id="seriesScoreLabel">🏆 1試合</span><strong id="seriesScoreNumbers">0 – 0</strong><small id="seriesScoreHint">先手を決めています</small></div>
           <section id="initiativePanel" class="initiative-panel hidden" aria-labelledby="initiativeTitle">
@@ -1243,6 +1270,7 @@
     const scriptOk=typeof window.Peer==='function';
     let peer=null, conn=null, room='', role=-1, connected=false, game=null, selection=null, movePending=null, finishing=false, peerOpen=false;
     let scoutMode=false,scoutPending=null,scoutReport=null,transformMode=false;
+    let reviewIndex=null;
     let solo=false, cpuSecrets={}, cpuTimer=null, captureTimer=null, captureRevealTimer=null, pendingResult=false;
     let cpuDifficulty='normal',captureTempo='normal',captureRevealNow=null,lastAnimatedKey='',replayTimer=null;
     let captureIntro=null,captureIntroTimer=null,firstRevealTimer=null,firstRevealRound=null;
@@ -2573,7 +2601,7 @@
     }
     function send(data){if(!conn||!conn.open)return false;conn.send(data);return true;}
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
-    function teardown(){ clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs();resetPlayFlow(); }
+    function teardown(){ reviewIndex=null;clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs();resetPlayFlow(); }
     function enterRoom(){ $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
     function startSolo(){
       cpuDifficulty=$('cpuDifficulty').value;
@@ -2626,7 +2654,7 @@
     function startRound(n,options=null){
       const settings=options||makeRoundSettings(nextMatchSettings());
       if(!validRoundSettings(settings))return gameError('先手決定の設定が正しくありません。');
-      resetRematch();clearFirstReveal();cancelCaptureIntro();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
+      resetRematch();reviewIndex=null;clearFirstReveal();cancelCaptureIntro();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;pendingResult=false;hideCapture();hideResult();clearReaction();$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey='';if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}cpuSecrets={};game={round:n,phase:['dice','card'].includes(settings.method)?'initiative':'setup',
         starter:settings.starter,
         match:{format:settings.format,method:settings.method,mode:settings.mode,scores:settings.scores.slice(),
           played:settings.played,previousStarter:settings.previousStarter,completed:false},
@@ -3245,10 +3273,48 @@
 
     // 持ち駒は捕獲した順番のまま表示する。赤青は捕獲時に確定して両端末で共有される。
 
+
+    function focusReviewOnBoard(scroll=false){
+      const board=$('board');
+      for(const cell of board.children)cell.classList.remove('review-from','review-to');
+      if(reviewIndex===null||!game||game.phase!=='finished')return;
+      const m=game.moves[reviewIndex];if(!m)return;
+      const locate=(x,y)=>{
+        if(!Number.isInteger(x)||!Number.isInteger(y))return null;
+        const p=role===0?{x,y}:{x:5-x,y:5-y};
+        return board.children[p.y*6+p.x]||null;
+      };
+      if(Number.isInteger(m.fromX)&&Number.isInteger(m.fromY))
+        locate(m.fromX,m.fromY)?.classList.add('review-from');
+      if(Number.isInteger(m.toX)&&Number.isInteger(m.toY))
+        locate(m.toX,m.toY)?.classList.add('review-to');
+      if(m.type==='escape'){
+        const piece=findPiece(m.id);
+        if(piece)locate(piece.x,piece.y)?.classList.add('review-to');
+      }
+      if(scroll&&typeof board.scrollIntoView==='function')
+        board.scrollIntoView({behavior:effectsMode==='off'?'instant':'smooth',block:'nearest'});
+    }
+    function setReviewIndex(index){
+      if(!game||game.phase!=='finished')return;
+      const n=game.moves.length;
+      reviewIndex=index===null?null:Math.max(0,Math.min(n-1,index));
+      renderReview();focusReviewOnBoard(reviewIndex!==null);
+    }
     function renderReview(){
       const finished=game.phase==='finished';
       $('reviewPanel').classList.toggle('hidden',!finished);
+      $('reviewNav').classList.toggle('hidden',!finished);
       if(!finished)return;
+      const n=game.moves.length;
+      $('reviewPrev').disabled=!n||reviewIndex===0;
+      $('reviewNext').disabled=!n||reviewIndex===n-1;
+      $('reviewStepLabel').textContent=reviewIndex===null?'全'+n+'アクション':
+        (reviewIndex+1)+' / '+n;
+      $('reviewReset').classList.toggle('hidden',reviewIndex===null);
+      $('reviewHint').textContent=reviewIndex===null?
+        '下の履歴か「次の手」を押して位置を確認できます。盤面は最終状態のままです。':
+        '🟡 点線＝移動前　🟢 実線＝移動後。当時の駒配置には戻りません。';
       $('reviewSummary').textContent=(game.winner===role?'あなたの勝ち':'相手の勝ち')+'：'+game.reason
         +' ／ '+turnCount()+'手（正体変化は手番に数えません。相手の色は検証後に盤面で確認できます）';
       const ol=$('reviewList');ol.replaceChildren();
@@ -3257,7 +3323,7 @@
         return '('+(cx+1)+'列,'+(cy+1)+'行)';
       };
       let numberedTurns=0;
-      for(const m of game.moves){
+      for(const [index,m] of game.moves.entries()){
         if(m.type!=='transform')numberedTurns++;
         const li=document.createElement('li');
         const who=m.owner===role?'あなた':solo?'CPU':'相手';
@@ -3271,7 +3337,12 @@
               ' のオバケの正体を交換（色は秘密）'
           :who+'：'+localSquare(m.fromX,m.fromY)+' → '+localSquare(m.toX,m.toY)
            +(m.captured?' ／ '+(m.captured==='good'?'青':'赤')+'を捕獲':''));
-        ol.append(li);
+        const button=document.createElement('button');
+        button.type='button';button.className='review-list-button';
+        button.textContent=li.textContent;
+        button.setAttribute('aria-current',reviewIndex===index?'step':'false');
+        button.addEventListener('click',()=>setReviewIndex(index));
+        li.textContent='';li.append(button);ol.append(li);
       }
     }
     function movedCells(){
@@ -3454,6 +3525,7 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
       cell.setAttribute('aria-label',`${cy+1}行${cx+1}列、${item}${isEx?'、出口':''}${action}`);cell.dataset.pieceId=p?.id||'';cell.addEventListener('click',()=>handleCell(x,y));board.append(cell);}
       $('history').replaceChildren();for(const event of game.history){const p=document.createElement('p');p.textContent=event;$('history').append(p);}
       animateMovedPiece();
+      focusReviewOnBoard();
       persistGame();
     }
     $('captureDismiss').addEventListener('click',()=>{
@@ -3496,6 +3568,11 @@ $('roundLabel').textContent='ROUND '+game.round;$('playerBadge').textContent=sol
     $('frontBlue').addEventListener('click',()=>applyPreset('good'));
     $('frontRed').addEventListener('click',()=>applyPreset('bad'));
     $('replayLast').addEventListener('click',replayLastMove);
+    $('reviewPrev').addEventListener('click',()=>setReviewIndex(
+      reviewIndex===null?game?.moves.length-1:reviewIndex-1));
+    $('reviewNext').addEventListener('click',()=>setReviewIndex(
+      reviewIndex===null?0:reviewIndex+1));
+    $('reviewReset').addEventListener('click',()=>setReviewIndex(null));
     $('scoutAction').addEventListener('click',toggleScoutMode);
     $('transformAction').addEventListener('click',toggleTransformMode);
     $('quickEscape').addEventListener('click',attemptEscape);
