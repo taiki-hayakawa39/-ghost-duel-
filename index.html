@@ -720,7 +720,7 @@
           <div class="hub-heading"><span>GHOST DUEL</span><h2>🎮 対戦する</h2><p>遊び方を選ぶだけ。初めてでも簡単に始められます。</p></div>
           <div id="playEntry" class="play-entry">
             <div id="playSavedDock"></div>
-            <button type="button" id="instantCpu" class="instant-cpu"><span class="instant-cpu-icon" aria-hidden="true">⚡</span><span><strong>前回の設定ですぐCPU戦</strong><small id="instantCpuDescription">ワンタップで対戦を開始</small></span><span aria-hidden="true">▶</span></button>
+            <button type="button" id="instantCpu" class="instant-cpu"><span class="instant-cpu-icon" aria-hidden="true">⚡</span><span><strong>今の設定ですぐCPU戦</strong><small id="instantCpuDescription">ワンタップで対戦を開始</small></span><span aria-hidden="true">▶</span></button>
             <button type="button" id="quickSolo" class="quick-play-btn primary"><span class="quick-play-emoji" aria-hidden="true">🤖</span><span><strong>CPUと遊ぶ</strong><small>1人で気軽に対戦</small></span><b aria-hidden="true">›</b></button>
             <button type="button" id="quickHost" class="quick-play-btn"><span class="quick-play-emoji" aria-hidden="true">👥</span><span><strong>友達と遊ぶ</strong><small>部屋を作って招待</small></span><b aria-hidden="true">›</b></button>
             <button type="button" id="quickJoin" class="quick-play-btn secondary"><span class="quick-play-emoji" aria-hidden="true">🔑</span><span><strong>部屋番号で参加</strong><small>教えてもらった番号を入力</small></span><b aria-hidden="true">›</b></button>
@@ -1476,7 +1476,12 @@
       const name=(GAME_MODES[$('gameMode').value]||GAME_MODES.classic).label;
       const difficulty=$('cpuDifficulty').selectedOptions?.[0]?.textContent||
         ({easy:'初級',normal:'中級',hard:'上級'}[$('cpuDifficulty').value]||'標準');
-      $('instantCpuDescription').textContent=name+' ／ CPU：'+difficulty;
+      // ワンタップで保存済み対局を誤って上書きしない。
+      const hasSaved=!!readSaved();
+      $('instantCpu').disabled=hasSaved;
+      $('instantCpuDescription').textContent=hasSaved?
+        '保存された対局があります。先に「再開」か「削除」を選んでください。':
+        name+' ／ CPU：'+difficulty;
     }
     function setupPlayJourney(){
       const play=$('tab-play');
@@ -2186,6 +2191,7 @@
     function clearAutoSave(){
       try{localStorage.removeItem(SAVE_KEY);}catch{}
       $('savedRoom').classList.add('hidden');
+      updateInstantCpuLabel();
     }
     function persistGame(){
       if(!game)return;
@@ -2200,6 +2206,7 @@
       const saved=readSaved();
       const el=$('savedRoom');
       el.classList.toggle('hidden',!saved);
+      updateInstantCpuLabel();
       if(!saved)return;
       const pending=!!saved.pendingCapture;
       $('savedRoomInfo').textContent=(saved.solo?'🤖 CPU戦':'🌐 オンライン対戦 '+saved.room)
@@ -3244,6 +3251,10 @@
             attemptTransform(b.id);return;
           }
         }
+        if(selection&&!target){
+          $('moveMessage').textContent='正体変化は金色の枠の味方とだけ交換できます。';
+          return;
+        }
         selection=target?.owner===role?target.id:null;
         render();return;
       }
@@ -3253,8 +3264,10 @@
           if(p&&Math.max(Math.abs(p.x-x),Math.abs(p.y-y))===1){
             attemptScout(target.id);return;
           }
+          $('moveMessage').textContent='偵察は選択した駒の周囲1マスです。紫の枠の相手を選んでください。';
+          return;
         }
-        selection=target?.owner===role?target.id:null;
+        selection=target?.owner===role?target.id:(selection&&target===null?selection:null);
         render();return;
       }
       if(selection){
