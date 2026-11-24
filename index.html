@@ -2610,7 +2610,16 @@
     function cleanURL(){return location.href.split('?')[0].split('#')[0];}
     function teardown(){ reviewIndex=null;clearAutoSave();resetRematch();scoutMode=false;scoutPending=null;scoutReport=null;transformMode=false;clearFirstReveal();opponentProfile=null;inviteFriendId=null;cancelCaptureIntro();pendingResult=false;hideCapture();hideResult();clearReaction();$('opponentStrip').classList.add('hidden');lastReactionSent=0;lastReactionReceived=0;$('reconnectButton').classList.add('hidden');$('gameReconnect').classList.add('hidden');document.body.classList.remove('game-active');if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}lastAnimatedKey=''; if(cpuTimer!==null){clearTimeout(cpuTimer);cpuTimer=null;}solo=false;cpuSecrets={};$('soloToolbar').classList.add('hidden'); if(conn){try{conn.close();}catch{}}if(peer){try{peer.destroy();}catch{}} conn=null;peer=null;connected=false;peerOpen=false;game=null;role=-1;selection=null;movePending=null;finishing=false;room=''; $('home').classList.remove('hidden');$('roomPanel').classList.add('hidden');$('gamePanel').classList.add('hidden');$('homeMessage').classList.add('hidden');busy(false);window.history.replaceState(null,'',cleanURL());syncBottomTabs();resetPlayFlow(); }
     function enterRoom(){ $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.remove('hidden'); $('roomText').textContent=room; $('connectBadge').textContent='接続待機中';$('connectBadge').classList.remove('green');setRoomInfo(role===0?'部屋を作成しました。相手が参加するまで、この画面を開いておいてください。':'部屋に接続しています…'); }
+    function confirmNewMatchWithSaved(){
+      if(!readSaved())return true;
+      if(typeof window.confirm!=='function'){
+        notice('homeMessage','前回の対局が保存されています。先に「再開」か「削除」を選んでください。',true);
+        return false;
+      }
+      return window.confirm('前回の対局が保存されています。新しい対局を始めると、保存中の対局は上書きされます。続けますか？');
+    }
     function startSolo(){
+      if(!confirmNewMatchWithSaved())return;
       cpuDifficulty=$('cpuDifficulty').value;
       updateCPUStyle($('cpuStyle').value);
       if(!window.crypto?.getRandomValues){notice('homeMessage','この端末では駒の準備に必要な機能が利用できません。SafariでHTTPSから開いてください。',true);return;}
@@ -2618,8 +2627,8 @@
       $('home').classList.add('hidden');syncBottomTabs();$('roomPanel').classList.add('hidden');$('soloToolbar').classList.remove('hidden');
       startRound(1);
     }
-    function create(){opponentProfile=null;updateOpponentFriendUI();if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
-    function join(){inviteFriendId=null;opponentProfile=null;updateOpponentFriendUI();const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
+    function create(){if(!confirmNewMatchWithSaved())return;opponentProfile=null;updateOpponentFriendUI();if(!scriptOk){notice('homeMessage','接続ライブラリを読み込めません。インターネット接続を確認してください。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSのサイトから開いてください（安全な接続が必要です）。',true);return;}busy(true);role=0;room=randCode();enterRoom();peer=new Peer('ghostduelv2-'+room,{debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;setRoomInfo('相手の接続を待っています。招待URLを送ってください。');});peer.on('connection',newConn=>{if(conn&&conn.open){newConn.on('open',()=>newConn.close());return;}attach(newConn);}); }
+    function join(){if(!confirmNewMatchWithSaved())return;inviteFriendId=null;opponentProfile=null;updateOpponentFriendUI();const code=$('joinCode').value.replace(/\s/g,'').toUpperCase();if(!CODE_RE.test(code)){notice('homeMessage','部屋番号は英数字8文字です。',true);return;}if(!scriptOk){notice('homeMessage','接続ライブラリの読み込みに失敗しました。',true);return;}if(!window.crypto?.subtle){notice('homeMessage','HTTPSで開いてください。',true);return;}busy(true);role=1;room=code;enterRoom();peer=new Peer({debug:0});watchPeer();peer.on('open',()=>{peerOpen=true;const c=peer.connect('ghostduelv2-'+room,{serialization:'json',reliable:true});attach(c);}); }
     function watchPeer(){peer.on('error',err=>{const messages={'peer-unavailable':'この部屋が見つかりません。相手の端末で部屋が開いているか確認してください。','unavailable-id':'同じ部屋番号がすでに使われています。「退出」して別の部屋を作ってください。','network':'通信サーバーにつながりません。通信環境を確認してください。','browser-incompatible':'このブラウザは2台対戦に対応していないようです。SafariまたはChromeを使用してください。'}; const msg=messages[err?.type]||'接続エラー: '+(err?.type||err?.message||'不明'); if($('home').classList.contains('hidden')){setRoomInfo(msg);}else notice('homeMessage',msg,true);if(!connected){busy(false);} });peer.on('disconnected',()=>{if(!connected)setRoomInfo('通信サーバーから切断されました。再接続を試しています。');try{if(!peer.destroyed)peer.reconnect();}catch{}});}
     function attach(c){
       conn=c;let accepted=false;let receiveQueue=Promise.resolve();
